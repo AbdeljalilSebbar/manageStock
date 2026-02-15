@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriStock Pro - Management & Usage</title>
+    <style>
+        :root {
+            --primary: #2d6a4f;
+            --secondary: #52b788;
+            --bg: #f4f7f6;
+            --white: #ffffff;
+            --text: #1e293b;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --gray: #64748b;
+            --success: #16a34a;
+            --info: #3b82f6;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        nav {
+            width: 80px;
+            background: var(--primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            color: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        main {
+            flex: 1;
+            padding: 30px 50px;
+            overflow-y: auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .btn-group { display: flex; gap: 10px; }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-outline { background: white; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-use   { background: #e2e8f0; color: #1e293b; font-size: 0.8rem; padding: 5px 10px; }
+        .btn-edit  { background: var(--info); color: white; font-size: 0.8rem; padding: 5px 10px; }
+        .btn-delete { background: var(--danger); color: white; font-size: 0.8rem; padding: 5px 10px; }
+
+        .page-section { display: none; }
+        .active { display: block; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            gap: 15px; 
+            margin-bottom: 30px; 
+        }
+        .stat-card { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            border-top: 4px solid var(--primary);
+            cursor: default;
+        }
+        .stat-label { font-size: 0.9rem; color: var(--gray); text-transform: uppercase; font-weight: 700; }
+        .stat-value { font-size: 1.6rem; font-weight: 700; margin-top: 5px; color: var(--text); line-height: 1.4; }
+
+        table { width: 100%; background: white; border-collapse: collapse; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px;}
+        th { background: #f8fafc; text-align: left; padding: 15px; color: var(--gray); font-size: 0.85rem; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+
+        .badge {
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+        .bg-ok      { background: #dcfce7; color: var(--success); }
+        .bg-warning { background: #fef3c7; color: #92400e; }
+        .bg-danger  { background: #fee2e2; color: var(--danger); }
+
+        .drawer { position: fixed; top: 0; right: -550px; width: 450px; height: 100vh; background: white; box-shadow: -5px 0 25px rgba(0,0,0,0.1); transition: 0.4s; padding: 30px; z-index: 100; overflow-y: auto;}
+        .drawer.open { right: 0; }
+        .overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display: none; z-index: 90; }
+
+        #usageModal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 200;
+            width: 400px;
+            display: none;
+        }
+
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.95rem; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 0.98rem; }
+      tr:hover{
+        background-color: #e0e0e0;
+      }
+    
+    </style>
+</head>
+<body>
+
+    <div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+    <div id="usageModal">
+        <h3 id="useTitle">Utiliser le produit</h3>
+        <p id="useInfo" style="color:var(--gray); font-size:0.95rem; margin:12px 0 20px;"></p>
+        
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 2;">
+                <label>Quantité à retirer</label>
+                <input type="number" id="useAmount" min="0.01" step="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Unité</label>
+                <select id="useUnit">
+                    <option value="KG">KG</option>
+                    <option value="Tonnes">Tonnes</option>
+                    <option value="Pièce / Sacs">Pièce / Sacs</option>
+                    <option value="L">L</option>
+                    <option value="ml">ml</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Date d'utilisation</label>
+            <input type="date" id="useDate">
+        </div>
+
+        <button class="btn btn-primary" style="width:100%" onclick="confirmUsage()">Confirmer le retrait</button>
+        <button class="btn btn-outline" style="width:100%; margin-top:12px;" onclick="closeAll()">Annuler</button>
+    </div>
+
+    <nav><div style="font-size: 36px; margin: 20px 0;">🌾</div></nav>
+
+    <main>
+        <header>
+            <h1>AgriStock Pro</h1>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="switchPage('stock-page')">Dashboard</button>
+                <button class="btn btn-outline" onclick="switchPage('empty-page')">Gestion de Stock</button>
+            </div>
+        </header>
+
+        <section id="stock-page" class="page-section active">
+            <div class="stats-grid" id="statsGrid"></div>
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="searchInput" style="width: 300px; padding: 10px; border-radius: 8px; border: 1px solid #ddd;" placeholder="Rechercher un produit..." onkeyup="render()">
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Produit</th><th>Catégorie</th><th>Achat</th><th>Quantité</th><th>Expiration</th><th>Statut</th></tr>
+                </thead>
+                <tbody id="dashBody"></tbody>
+            </table>
+        </section>
+
+        <section id="empty-page" class="page-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                <h2>Liste des Produits</h2>
+                <button class="btn btn-primary" onclick="openAddDrawer()">+ Ajouter Nouveau Lot</button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Produit & Note</th><th>Catégorie</th><th>Date d'Achat</th><th>Stock Actuel</th><th>Dernière Action</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="manageBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <div class="drawer" id="drawer">
+        <h2 id="drawerTitle">Nouvelle Entrée</h2>
+        <input type="hidden" id="editIndex">
+        <div class="form-group"><label>Nom du Produit *</label><input type="text" id="productName"></div>
+        <div class="form-group"><label>Catégorie</label>
+            <select id="category">
+                <option>Alaf / Aliments bétail</option>
+                <option>Dwa / Médicaments vétérinaires</option>
+                <option>Engrais / Fertilizers</option>
+                <option>Semences</option>
+                <option>Autres</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Date d'Achat</label><input type="date" id="purchaseDate"></div>
+        <div class="form-group"><label id="qtyLabel">Quantité initiale *</label><input type="number" id="quantity" step="0.01"></div>
+        <div class="form-group"><label>Unité</label>
+            <select id="unit">
+                <option value="KG">KG</option>
+                <option value="Tonnes">Tonnes</option>
+                <option value="Pièce / Sacs">Pièce / Sacs</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Date d'expiration</label><input type="date" id="expiryDate"></div>
+        <div class="form-group"><label>Notes</label><textarea id="notes" rows="3"></textarea></div>
+        <button id="saveBtn" class="btn btn-primary" style="width:100%; margin-top:20px;" onclick="saveProduct()">Enregistrer</button>
+    </div>
+
+    <script>
+        let db = JSON.parse(localStorage.getItem('agri_db')) || [];
+        let currentUseIndex = null;
+
+        function convertToStockUnit(amount, fromUnit, toUnit) {
+            if (fromUnit === toUnit) return amount;
+            const conversions = {
+                'Tonnes_KG': 1000, 'KG_Tonnes': 0.001,
+                'L_ml': 1000, 'ml_L': 0.001
+            };
+            const key = `${fromUnit}_${toUnit}`;
+            return conversions[key] ? amount * conversions[key] : amount;
+        }
+
+        function switchPage(id) {
+            document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            render();
+        }
+
+        function openAddDrawer() {
+            document.getElementById('drawerTitle').innerText = "Nouvelle Entrée";
+            document.getElementById('editIndex').value = "";
+            clearForm();
+            document.getElementById('drawer').classList.add('open');
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function openEditDrawer(index) {
+            const p = db[index];
+            document.getElementById('drawerTitle').innerText = "Modifier Produit";
+            document.getElementById('editIndex').value = index;
+            document.getElementById('productName').value = p.name;
+            document.getElementById('category').value = p.cat;
+            document.getElementById('purchaseDate').value = p.buyDate || '';
+            document.getElementById('quantity').value = p.qty;
+            document.getElementById('unit').value = p.unit;
+            document.getElementById('expiryDate').value = p.exp || '';
+            document.getElementById('notes').value = p.notes || '';
+            document.getElementById('drawer').classList.add('open');
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function closeAll() {
+            document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open'));
+            document.getElementById('usageModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function clearForm() {
+            document.getElementById('productName').value = '';
+            document.getElementById('purchaseDate').value = '';
+            document.getElementById('quantity').value = '';
+            document.getElementById('expiryDate').value = '';
+            document.getElementById('notes').value = '';
+        }
+
+        function saveProduct() {
+            const name = document.getElementById('productName').value.trim();
+            const qty = parseFloat(document.getElementById('quantity').value);
+            const index = document.getElementById('editIndex').value;
+            if (!name || isNaN(qty)) return alert("Champs obligatoires manquants");
+
+            const data = {
+                id: index !== "" ? db[index].id : Date.now(),
+                name,
+                cat: document.getElementById('category').value,
+                buyDate: document.getElementById('purchaseDate').value,
+                qty,
+                unit: document.getElementById('unit').value,
+                exp: document.getElementById('expiryDate').value,
+                notes: document.getElementById('notes').value.trim(),
+                lastAction: index !== "" ? 'Modifié' : 'Ajouté le ' + new Date().toLocaleDateString('fr-MA')
+            };
+
+            if (index !== "") db[index] = data; 
+            else db.push(data);
+
+            saveAndRender();
+            closeAll();
+        }
+
+        function openUseForm(index) {
+            currentUseIndex = index;
+            const p = db[index];
+            document.getElementById('useTitle').innerText = "Utiliser : " + p.name;
+            document.getElementById('useInfo').innerText = `Disponible : ${p.qty} ${p.unit}`;
+            document.getElementById('useUnit').value = p.unit;
+            document.getElementById('useAmount').value = '';
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('useDate').value = today;
+
+            document.getElementById('usageModal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function confirmUsage() {
+            const amountInput = parseFloat(document.getElementById('useAmount').value);
+            const unitUsed = document.getElementById('useUnit').value;
+            const chosenDate = document.getElementById('useDate').value;
+            const product = db[currentUseIndex];
+
+            if (isNaN(amountInput) || amountInput <= 0) return alert("Quantité invalide");
+            if (!chosenDate) return alert("Veuillez choisir une date");
+
+            const amountInStockUnit = convertToStockUnit(amountInput, unitUsed, product.unit);
+            if (amountInStockUnit > product.qty) return alert("Stock insuffisant");
+
+            const formattedDate = new Date(chosenDate).toLocaleDateString('fr-MA');
+            product.qty -= amountInStockUnit;
+            product.lastAction = `Retiré ${amountInput} ${unitUsed} le ${formattedDate}`;
+            
+            saveAndRender();
+            closeAll();
+        }
+
+        function deleteProduct(index) {
+            if (confirm("Supprimer ce produit ?")) {
+                db.splice(index, 1);
+                saveAndRender();
+            }
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('agri_db', JSON.stringify(db));
+            render();
+        }
+
+        function getStatus(item) {
+            if (!item.exp) return { text: "—", class: "" };
+            const diff = Math.ceil((new Date(item.exp) - new Date()) / (1000*60*60*24));
+            if (diff < 0) return { text: "Périmé", class: "bg-danger" };
+            if (diff <= 30) return { text: "Proche", class: "bg-warning" };
+            return { text: "OK", class: "bg-ok" };
+        }
+
+        function render() {
+            const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+            const dash = document.getElementById('dashBody');
+            const manage = document.getElementById('manageBody');
+            const statsGrid = document.getElementById('statsGrid');
+            
+            dash.innerHTML = manage.innerHTML = statsGrid.innerHTML = '';
+
+            let categoryTotals = {};
+
+            db.forEach((p, i) => {
+                if (!categoryTotals[p.cat]) categoryTotals[p.cat] = {};
+                if (!categoryTotals[p.cat][p.unit]) categoryTotals[p.cat][p.unit] = 0;
+                categoryTotals[p.cat][p.unit] += p.qty;
+
+                if (p.name.toLowerCase().includes(search)) {
+                    const stat = getStatus(p);
+                    
+                    dash.innerHTML += `<tr>
+                        <td><b>${p.name}</b></td>
+                        <td><small>${p.cat}</small></td>
+                        <td>${p.buyDate || '—'}</td>
+                        <td>${p.qty.toFixed(2)} ${p.unit}</td>
+                        <td>${p.exp || '—'}</td>
+                        <td><span class="badge ${stat.class}">${stat.text}</span></td>
+                    </tr>`;
+
+                    manage.innerHTML += `<tr>
+                        <td><b>${p.name}</b><br><small>${p.notes}</small></td>
+                        <td>${p.cat}</td>
+                        <td>${p.buyDate || '—'}</td>
+                        <td><span class="badge bg-ok">${p.qty.toFixed(2)} ${p.unit}</span></td>
+                        <td><small>${p.lastAction}</small></td>
+                        <td>
+                            <button class="btn btn-use" onclick="openUseForm(${i})">Utiliser</button>
+                            <button class="btn btn-edit" onclick="openEditDrawer(${i})">Modifier</button>
+                            <button class="btn btn-delete" style="padding: 5px;" onclick="deleteProduct(${i})">Supprimer️</button>
+                        </td>
+                    </tr>`;
+                }
+            });
+
+            for (const cat in categoryTotals) {
+                let unitStrings = [];
+                for (const unit in categoryTotals[cat]) {
+                    unitStrings.push(`${categoryTotals[cat][unit].toFixed(1)} ${unit}`);
+                }
+                statsGrid.innerHTML += `
+                    <div class="stat-card">
+                        <div class="stat-label">${cat}</div>
+                        <div class="stat-value">${unitStrings.join('<br>')}</div>
+                    </div>
+                `;
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
