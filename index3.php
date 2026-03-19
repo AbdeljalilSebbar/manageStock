@@ -1,9 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-ini_set('memory_limit', '512M');
-
 $host = "localhost";
 $dbname = "stocktable";
 $user = "root";
@@ -12,10 +7,11 @@ $pass = "";
 try {
 	$pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass, [
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+		PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 	]);
 } catch (PDOException $e) {
-	die("Erreur de connexion : " . $e->getMessage());
+	die("Erreur de connexion");
 }
 
 if (!file_exists('uploads')) {
@@ -45,10 +41,14 @@ if (isset($_GET['fetch_logs'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
 	function addLog($pdo, $p_id, $name, $cat, $buyDate, $qty, $unit, $type, $details, $notes)
 	{
-		$sql = "INSERT INTO product_logs (product_id, product_name, catégorie, buyDate, qty, unit, action_type, details, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-		$pdo->prepare($sql)->execute([$p_id, $name, $cat, $buyDate, $qty, $unit, $type, $details, $notes]);
+		$sql = "INSERT INTO product_logs 
+            (product_id, product_name, catégorie, buyDate, qty, unit, action_type, details, notes) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+		$stmt = $pdo->prepare($sql);
+		$stmt->execute([$p_id, $name, $cat, $buyDate, $qty, $unit, $type, $details, $notes]);
 	}
 
 	$action = $_POST['action'] ?? '';
@@ -58,11 +58,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$name = $_POST['name'] ?? '';
 		$cat = $_POST['cat'] ?? '';
 		$buyDate = $_POST['buyDate'] ?? '';
-		$qty = (isset($_POST['qty']) && $_POST['qty'] !== '') ? floatval($_POST['qty']) : 0;
+		$input_qty = (isset($_POST['qty']) && $_POST['qty'] !== '') ? floatval($_POST['qty']) : 0;
 		$unit = $_POST['unit'] ?? '';
+		$input_unit = $_POST['input_unit'] ?? $unit;
 		$exp = $_POST['exp'] ?? '';
 		$notes = $_POST['notes'] ?? '';
 		$imagePath = $_POST['existing_image'] ?? null;
+
+		$final_qty = $input_qty;
+		echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
+		if ($input_unit !== $unit) {
+			$u1 = strtolower(trim($input_unit));
+			$u2 = strtolower(trim($unit));
+			if ($u1 == 'kg' && ($u2 == 'tonnes' || $u2 == 't'))
+				$final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && $u2 == 'kg')
+				$final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && ($u2 == 'tonnes' || $u2 == 't'))
+				$final_qty = $input_qty / 1000000;
+			elseif ($u1 == 'ml' && $u2 == 'l')
+				$final_qty = $input_qty / 1000;
+			elseif (($u1 == 'tonnes' || $u1 == 't') && $u2 == 'kg')
+				$final_qty = $input_qty * 1000;
+			echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
+		}
 
 		if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
 			$tmpPath = $_FILES['image']['tmp_name'];
@@ -71,7 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$target = 'uploads/' . $newName;
 			$imgSuccess = false;
 			$info = @getimagesize($tmpPath);
-
 			if ($info && function_exists('imagecreatefromjpeg')) {
 				try {
 					$img = null;
@@ -104,45 +122,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			}
 			if (!$imgSuccess) {
 				$rawTarget = 'uploads/' . uniqid() . '.' . $extension;
-				if (move_uploaded_file($tmpPath, $rawTarget)) {
-					$imagePath = $rawTarget;
-				}
+				if (move_uploaded_file($tmpPath, $rawTarget)) $imagePath = $rawTarget;
 			}
 		}
 
+		$lastAction = !empty($id) ? "Modifié le " . date('d/m/Y') : "Ajouté le " . date('d/m/Y');
+
 		if (!empty($name)) {
-			$lastAction = !empty($id) ? "Modifié le " . date('d/m/Y') : "Ajouté le " . date('d/m/Y');
 			if (!empty($id)) {
 				$sql = "UPDATE products SET name=?, catégorie=?, buyDate=?, qty=?, unit=?, exp=?, notes=?, lastAction=?, image=? WHERE id=?";
-				$params = [$name, $cat, $buyDate, $qty, $unit, $exp, $notes, $lastAction, $imagePath, $id];
+				$params = [$name, $cat, $buyDate, $final_qty, $unit, $exp, $notes, $lastAction, $imagePath, $id];
 			} else {
 				$sql = "INSERT INTO products (name, catégorie, buyDate, first_qty, qty, unit, exp, notes, lastAction, image, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1')";
-				$params = [$name, $cat, $buyDate, $qty, $qty, $unit, $exp, $notes, $lastAction, $imagePath];
+				$params = [$name, $cat, $buyDate, $final_qty, $final_qty, $unit, $exp, $notes, $lastAction, $imagePath];
 			}
+
 			$pdo->prepare($sql)->execute($params);
+			$currentId = $id ?: $pdo->lastInsertId();
+			$logType = !empty($id) ? "Modification" : "Ajout";
+			$logDetail = ($input_unit !== $unit) ? "Entrée: $input_qty $input_unit (Converti en $final_qty $unit)" : "Entrée de stock: $final_qty $unit";
+
+			addLog($pdo, $currentId, $name, $cat, $buyDate, $final_qty, $unit, $logType, $logDetail, $notes);
 		}
-		echo json_encode(['success' => true]);
+
+		header('Content-Type: application/json');
+		echo json_encode(['success' => true, 'path' => $imagePath]);
 		exit;
 	}
 
 	if ($action === 'use') {
 		$id = intval($_POST['id']);
-		$used_qty = floatval($_POST['used_qty']);
+		$input_qty = floatval($_POST['used_qty']);
+		$input_unit = $_POST['used_unit'] ?? '';
 		$formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
+
 		$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
 		$s->execute([$id]);
 		$p = $s->fetch();
+
 		if ($p) {
-			$lastAction = "⚡ Utilisé ($used_qty {$p['unit']}) le $formatted_date";
-			$pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?")->execute([$used_qty, $lastAction, $id]);
-			addLog($pdo, $id, $p['name'], $p['catégorie'], $p['buyDate'], $used_qty, $p['unit'], 'Utilisation', "Consommé le $formatted_date", $p['notes'] ?? '');
+			$base_unit = strtolower(trim($p['unit']));
+			$used_unit = strtolower(trim($input_unit));
+			$converted_qty = $input_qty;
+
+			if ($used_unit !== $base_unit) {
+				// All checks must be in lowercase here
+				if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+					$converted_qty = $input_qty / 1000;
+				} elseif ($used_unit == 'g' && $base_unit == 'kg') {
+					$converted_qty = $input_qty / 1000;
+				} elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+					$converted_qty = $input_qty / 1000000;
+				} elseif ($used_unit == 'ml' && $base_unit == 'l') {
+					$converted_qty = $input_qty / 1000;
+				} elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') {
+					$converted_qty = $input_qty * 1000;
+				}
+			}
+
+			$lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
+
+			// Execute the subtraction
+			$stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
+			$stmt->execute([$converted_qty, $lastAction, $id]);
+
+			addLog(
+				$pdo,
+				$id,
+				$p['name'],
+				$p['catégorie'],
+				$p['buyDate'],
+				$converted_qty,
+				$p['unit'],
+				'Utilisation',
+				"Consommé $input_qty $input_unit (soit $converted_qty {$p['unit']})",
+				$p['notes']
+			);
 		}
 	}
 
 	if ($action === 'delete') {
 		$id = intval($_POST['id']);
-		$pdo->prepare("UPDATE products SET status = '0' WHERE id = ?")->execute([$id]);
+		$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
+		$s->execute([$id]);
+		$p = $s->fetch();
+		if ($p) {
+			$pdo->prepare("UPDATE products SET status = '0' WHERE id = ?")->execute([$id]);
+			addLog($pdo, $id, $p['name'], $p['catégorie'], $p['buyDate'], $p['qty'], $p['unit'], 'Suppression', "Produit archivé", $p['notes']);
+		}
 	}
+	header('Content-Type: application/json');
 	echo json_encode(['success' => true]);
 	exit;
 }
@@ -153,14 +222,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AgriStock Pro - Inbat</title>
+	<title>AgriStock Pro</title>
 	<style>
 		:root {
 			--primary: #2d6a4f;
+			--secondary: #52b788;
 			--bg: #f4f7f6;
 			--text: #1e293b;
 			--danger: #ef4444;
 			--gray: #64748b;
+			--success: #16a34a;
+			--use-color: #0ea5e9;
 		}
 
 		body {
@@ -211,10 +283,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			border-left: 5px solid var(--primary);
 		}
 
+		.stat-card h3 {
+			margin: 0;
+			font-size: 0.75rem;
+			color: var(--gray);
+			text-transform: uppercase;
+			letter-spacing: 1px;
+		}
+
 		.stat-card .value {
 			font-size: 1.6rem;
 			font-weight: bold;
+			margin-top: 5px;
 			color: var(--primary);
+		}
+
+		.stat-card .unit {
+			font-size: 0.9rem;
+			color: var(--gray);
+			margin-left: 5px;
 		}
 
 		.table-container {
@@ -230,20 +317,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			min-width: 900px;
 		}
 
-		th,
-		td {
+		th {
+			background: #f8fafc;
 			padding: 15px;
 			text-align: left;
+			color: var(--gray);
+			font-size: 0.85rem;
+			border-bottom: 2px solid #edf2f7;
+		}
+
+		td {
+			padding: 15px;
 			border-bottom: 1px solid #f1f5f9;
-		}
-
-		tr.clickable {
-			cursor: pointer;
-			transition: 0.2s;
-		}
-
-		tr.clickable:hover {
-			background: #f0fdf4;
+			font-size: 0.9rem;
 		}
 
 		.btn {
@@ -252,6 +338,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			border: none;
 			cursor: pointer;
 			font-weight: 600;
+			font-size: 0.85rem;
+		}
+
+		.search-input {
+			padding: 10px 15px;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			width: 300px;
+			margin-bottom: 15px;
+			font-size: 0.9rem;
+			outline: none;
+			transition: 0.2s;
+		}
+
+		.search-input:focus {
+			border-color: var(--primary);
+			box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.2);
+		}
+
+		.stock-info-box {
+			background: #f8fafc;
+			border: 1px dashed #cbd5e1;
+			padding: 15px;
+			border-radius: 8px;
+			margin-bottom: 20px;
+			text-align: center;
+		}
+
+		.stock-info-box span {
+			font-size: 1.5rem;
+			font-weight: bold;
+			color: var(--primary);
+			display: block;
+			margin-top: 5px;
 		}
 
 		.btn-primary {
@@ -261,8 +381,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		.btn-outline {
 			background: white;
-			border: 1px solid var(--primary);
 			color: var(--primary);
+			border: 1px solid var(--primary);
+		}
+
+		.btn-danger {
+			background: #fee2e2;
+			color: var(--danger);
+		}
+
+		.btn-use {
+			background: #e0f2fe;
+			color: var(--use-color);
 		}
 
 		.drawer {
@@ -283,6 +413,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			right: 0;
 		}
 
+		.prod-img {
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+			object-fit: cover;
+			background: #eee;
+		}
+
 		.overlay {
 			position: fixed;
 			top: 0;
@@ -294,12 +432,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			z-index: 90;
 		}
 
-		.prod-img {
-			width: 40px;
-			height: 40px;
-			border-radius: 50%;
-			object-fit: cover;
-			background: #eee;
+		.form-group {
+			margin-bottom: 15px;
+		}
+
+		input[type="text"]:not(.search-input),
+		input[type="number"],
+		input[type="date"],
+		input[type="datetime-local"],
+		select,
+		textarea {
+			width: 100%;
+			padding: 10px;
+			border: 1px solid #ddd;
+			border-radius: 6px;
+			font-family: inherit;
+		}
+
+		.page-section {
+			display: none;
+		}
+
+		.active {
+			display: block;
 		}
 
 		.badge {
@@ -307,29 +462,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			border-radius: 6px;
 			font-size: 0.75rem;
 			font-weight: bold;
-			background: #e2e8f0;
 		}
 
-		.page-section {
-			display: none;
+		.bg-ok {
+			background: #dcfce7;
+			color: var(--success);
 		}
 
-		.page-section.active {
-			display: block;
+		.bg-low {
+			background: #ffedd5;
+			color: #f59e0b;
 		}
 
-		input,
-		select,
-		textarea {
-			width: 100%;
-			padding: 10px;
-			margin-top: 5px;
-			border: 1px solid #ddd;
-			border-radius: 6px;
-		}
-
-		.form-group {
-			margin-bottom: 15px;
+		tr.clickable:hover {
+			background: #f0fdf4;
+			cursor: pointer;
 		}
 
 		.details-img {
@@ -401,45 +548,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <body>
 	<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+
 	<div class="drawer" id="drawer">
-		<h2>Produit</h2>
+		<h2 id="drawerTitle">Produit</h2>
 		<form id="saveForm">
 			<input type="hidden" name="action" value="save">
 			<input type="hidden" name="id" id="form_id">
 			<input type="hidden" name="existing_image" id="form_existing_image">
 			<div class="form-group"><label>Image</label><input type="file" name="image" accept="image/*"></div>
-			<div class="form-group"><label>Nom</label><input type="text" name="name" id="form_name" required></div>
-			<div class="form-group"><label>Catégorie</label><input type="text" name="cat" id="form_cat" list="category_options"></div>
-			<div style="display:flex; gap:10px;">
-				<div class="form-group"><label>Qty</label><input type="number" name="qty" id="form_qty" step="0.01" required></div>
-				<div class="form-group"><label>Unité</label><input type="text" name="unit" id="form_unit" required></div>
+			<div class="form-group">
+				<label>Nom</label>
+				<input type="text" name="name" id="form_name" required>
+			</div>
+			<div class="form-group">
+				<label>Catégorie</label>
+				<input type="text" name="cat" id="form_cat" list="category_options" required>
+				<datalist id="category_options">
+					<option value="Alaf / Aliments bétail">
+					<option value="Dwa / Médicaments vétérinaires">
+					<option value="Engrais / Fertilizers">
+					<option value="Semences">
+				</datalist>
+			</div>
+			<div style="display: flex; gap: 10px;">
+				<div class="form-group" style="flex:2;">
+					<label>Quantité</label>
+					<input type="number" name="qty" id="form_qty" step="0.0001" required>
+				</div>
+				<div class="form-group" style="flex:1;">
+					<label>Unité Saisie</label>
+					<select name="input_unit" id="form_input_unit">
+						<option value="KG">KG</option>
+						<option value="G">G</option>
+						<option value="Tonnes">Tonnes</option>
+						<option value="L">L</option>
+						<option value="mL">ml</option>
+					</select>
+				</div>
+			</div>
+			<div class="form-group">
+				<label>Unité Stock (Base)</label>
+				<input type="text" name="unit" id="form_unit" list="unit_options" placeholder="ex: Tonnes" required>
+				<datalist id="unit_options">
+					<option value="KG">
+					<option value="Tonnes">
+					<option value="L">
+					<option value="Sacs">
+				</datalist>
 			</div>
 			<div class="form-group"><label>Achat</label><input type="date" name="buyDate" id="form_buy" required></div>
 			<div class="form-group"><label>Exp</label><input type="date" name="exp" id="form_exp"></div>
 			<div class="form-group"><label>Notes</label><textarea name="notes" id="form_notes"></textarea></div>
-			<button type="submit" class="btn btn-primary" style="width:100%;">💾 Enregistrer</button>
+			<button type="submit" class="btn btn-primary" style="width: 100%;">💾 Enregistrer</button>
 		</form>
 	</div>
+
 	<div class="drawer" id="useDrawer">
 		<h2>⚡ Utiliser</h2>
-		<div id="currentStockDisplay" style="text-align:center; font-size:20px; font-weight:bold; margin:20px 0;"></div>
+		<div class="stock-info-box">Stock Disponible: <span id="currentStockDisplay">0 KG</span></div>
 		<form id="useForm">
 			<input type="hidden" name="action" value="use">
 			<input type="hidden" name="id" id="use_form_id">
-			<div class="form-group"><label>Quantité</label><input type="number" name="used_qty" step="0.01" required></div>
+			<div class="form-group">
+				<label>Quantité à retirer</label>
+				<div style="display: flex; gap: 10px;">
+					<input type="number" name="used_qty" id="use_form_qty" step="0.0001" required style="flex:2;">
+					<select name="used_unit" id="use_form_unit" style="flex:1;">
+						<option value="KG">KG</option>
+						<option value="G">G</option>
+						<option value="Tonnes">Tonnes</option>
+						<option value="L">L</option>
+						<option value="ml">ml</option>
+					</select>
+				</div>
+			</div>
 			<div class="form-group"><label>Date</label><input type="datetime-local" name="use_date" id="use_form_date" required></div>
-			<button type="submit" class="btn btn-primary" style="width:100%;">✓ Valider</button>
+			<button type="submit" class="btn btn-use" style="width: 100%; color: white;">✓ Valider</button>
 		</form>
 	</div>
-	<div class="drawer" id="detailsDrawer">
-		<div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:20px;">
-			<h2>Détails</h2>
-			<button class="btn" onclick="closeDrawer()" style="background:#eee;">✕</button>
-		</div>
-		<div id="detailsContent"></div>
-	</div>
+
 	<nav>
-		<div style="font-size:32px; margin-top:20px;">🌾</div>
+		<div style="font-size: 32px; margin-top: 20px;">🌾</div>
 	</nav>
 	<main>
 		<header>
@@ -449,8 +638,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				<button class="btn btn-primary" onclick="switchPage('manage')">⚙️ Gestion</button>
 			</div>
 		</header>
+
 		<section id="dashboard" class="page-section active">
 			<div id="statsSummary" class="stats-grid"></div>
+			<input type="text" class="search-input" placeholder="🔍 Rechercher..." onkeyup="searchTable(this, 'dashTable')">
 			<div class="table-container">
 				<table id="dashTable">
 					<thead>
@@ -460,14 +651,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 							<th>Stock</th>
 							<th>Achat</th>
 							<th>Exp</th>
+							<th>Action</th>
 						</tr>
 					</thead>
 					<tbody></tbody>
 				</table>
 			</div>
 		</section>
+
 		<section id="manage" class="page-section">
-			<button class="btn btn-primary" onclick="openAdd()" style="margin-bottom:20px;">+ Nouveau</button>
+			<input type="text" class="search-input" placeholder="🔍 Rechercher..." onkeyup="searchTable(this, 'manTable')">
+			<button class="btn btn-primary" onclick="openAdd()" style="margin-bottom: 20px;">+ Nouveau</button>
 			<div class="table-container">
 				<table id="manTable">
 					<thead>
@@ -476,6 +670,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 							<th>Catégorie</th>
 							<th>Stock</th>
 							<th>Achat</th>
+							<th>Exp</th>
+							<th>Dernière Action</th>
 							<th>Actions</th>
 						</tr>
 					</thead>
@@ -484,39 +680,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			</div>
 		</section>
 	</main>
-	<datalist id="category_options">
-		<option value="Alaf">
-		<option value="Dwa">
-		<option value="Engrais">
-		<option value="Semences">
-	</datalist>
+
+	<div class="drawer" id="detailsDrawer">
+		<h2>Détails du Produit</h2>
+		<div id="detailsContent" style="max-height: 80%; overflow-y: auto;"></div>
+		<button class="btn btn-outline" style="width: 100%; margin-top: 20px;" onclick="closeDrawer()">Fermer</button>
+	</div>
+
 	<script>
 		const API_URL = window.location.pathname;
 		const PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2250%22%20height%3D%2250%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23eee%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%20fill%3D%22%23aaa%22%3ENo%20Img%3C%2Ftext%3E%3C%2Fsvg%3E';
-		async function loadProducts() {
-			const res = await fetch(API_URL + '?fetch=1');
-			const data = await res.json();
-			const dashBody = document.querySelector('#dashTable tbody');
-			const manBody = document.querySelector('#manTable tbody');
-			const stats = document.getElementById('statsSummary');
-			dashBody.innerHTML = manBody.innerHTML = stats.innerHTML = '';
-			const totals = {};
-			data.forEach(p => {
-				const img = p.image ? p.image : PLACEHOLDER;
-				const pData = JSON.stringify(p).replace(/'/g, "&apos;");
-				const commonCells = `<td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${p.catégorie}</td><td><span class="badge">${p.qty} ${p.unit}</span></td><td>${p.buyDate}</td>`;
-				dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${pData})'>${commonCells}<td>${p.exp || '-'}</td></tr>`;
-				manBody.innerHTML += `<tr class="clickable" onclick='showDetails(${pData})'>${commonCells}<td>
-                    <button class="btn btn-outline" onclick='event.stopPropagation(); openUse(${pData})'>⚡</button>
-                    <button class="btn btn-outline" onclick='event.stopPropagation(); openEdit(${pData})'>✏️</button>
-                </td></tr>`;
-				if (!totals[p.catégorie]) totals[p.catégorie] = 0;
-				totals[p.catégorie] += parseFloat(p.qty);
-			});
-			for (let cat in totals) {
-				stats.innerHTML += `<div class="stat-card"><h3>${cat}</h3><div class="value">${totals[cat]}</div></div>`;
+
+		function searchTable(input, tableId) {
+			let filter = input.value.toUpperCase();
+			let tr = document.getElementById(tableId).getElementsByTagName("tr");
+			for (let i = 1; i < tr.length; i++) {
+				tr[i].style.display = (tr[i].textContent.toUpperCase().indexOf(filter) > -1) ? "" : "none";
 			}
 		}
+
+		async function loadProducts() {
+			const response = await fetch(API_URL + '?fetch=1');
+			const products = await response.json();
+			const dashBody = document.querySelector('#dashTable tbody');
+			const manBody = document.querySelector('#manTable tbody');
+			const statsSummary = document.getElementById('statsSummary');
+
+			dashBody.innerHTML = '';
+			manBody.innerHTML = '';
+			const totals = {};
+
+			products.forEach(p => {
+				const cat = p.catégorie || "Non classé";
+				const unit = p.unit || "u";
+				const qty = parseFloat(p.qty) || 0;
+				const img = p.image || PLACEHOLDER;
+
+				if (!totals[cat]) totals[cat] = {};
+				if (!totals[cat][unit]) totals[cat][unit] = 0;
+				totals[cat][unit] += qty;
+
+				const badgeClass = qty <= 5 ? 'bg-low' : 'bg-ok';
+				const rowData = JSON.stringify(p).replace(/'/g, "&apos;");
+
+				dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${rowData})'><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td></tr>`;
+				manBody.innerHTML += `<tr><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><b>${p.qty}</b> ${unit}</td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td><td><button class="btn btn-use" onclick='openUse(${rowData})'>⚡</button> <button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button> <button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></td></tr>`;
+			});
+
+			statsSummary.innerHTML = '';
+			for (const catName in totals) {
+				let lines = '';
+				for (const [u, v] of Object.entries(totals[catName])) lines += `<div class="value">${v.toFixed(2)}<span class="unit">${u}</span></div>`;
+				statsSummary.innerHTML += `<div class="stat-card"><h3>Total ${catName}</h3>${lines}</div>`;
+			}
+		}
+
 		document.querySelectorAll('form').forEach(f => {
 			f.onsubmit = async (e) => {
 				e.preventDefault();
@@ -528,40 +746,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				loadProducts();
 			};
 		});
-		async function showDetails(p) {
-			const img = p.image ? p.image : PLACEHOLDER;
-			const content = document.getElementById('detailsContent');
-			const expired = p.exp && new Date(p.exp) < new Date();
-			content.innerHTML = `
-                <img src="${img}" class="details-img" onerror="this.src='${PLACEHOLDER}'">
-                <div class="info-item"><span class="info-label">Produit</span><span class="info-value">${p.name}</span></div>
-                <div style="display:flex; gap:20px;">
-                    <div class="info-item" style="flex:1;"><span class="info-label">Stock</span><span class="info-value">${p.qty} ${p.unit}</span></div>
-                    <div class="info-item" style="flex:1;"><span class="info-label">Achat</span><span class="info-value">${p.buyDate}</span></div>
-                </div>
-                <div class="info-item"><span class="info-label">Expiration</span><span class="info-value" style="color:${expired ? 'red':'inherit'}">${p.exp || 'N/A'}</span></div>
-                <div class="info-item"><span class="info-label">Historique des Actions</span><div id="logsTimeline" class="timeline">Chargement...</div></div>
-                <div class="info-item"><span class="info-label">Notes</span><div class="notes-box">${p.notes || '...'}</div></div>
-            `;
-			openDrawer('detailsDrawer');
-			try {
-				const res = await fetch(`${API_URL}?fetch_logs=${p.id}`);
-				const logs = await res.json();
-				const container = document.getElementById('logsTimeline');
-				container.innerHTML = logs.length ? logs.map(l => `
-                    <div class="log-item">
-                        <span class="log-date">${l.action_date}</span>
-                        <b>${l.action_type}:</b> ${l.details}
-                    </div>
-                `).join('') : "Aucun historique.";
-			} catch (e) {
-				document.getElementById('logsTimeline').innerText = "Erreur.";
-			}
+
+		async function deleteProduct(id) {
+			if (!confirm('Archiver ?')) return;
+			const fd = new FormData();
+			fd.append('action', 'delete');
+			fd.append('id', id);
+			await fetch(API_URL, {
+				method: 'POST',
+				body: fd
+			});
+			loadProducts();
+		}
+
+		function switchPage(id) {
+			document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+			document.getElementById(id).classList.add('active');
 		}
 
 		function openAdd() {
 			document.getElementById('saveForm').reset();
-			document.getElementById('form_id').value = '';
+			document.getElementById('form_id').value = "";
 			openDrawer('drawer');
 		}
 
@@ -571,17 +776,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			document.getElementById('form_cat').value = p.catégorie;
 			document.getElementById('form_qty').value = p.qty;
 			document.getElementById('form_unit').value = p.unit;
+			document.getElementById('form_input_unit').value = p.unit;
 			document.getElementById('form_buy').value = p.buyDate;
 			document.getElementById('form_exp').value = p.exp;
-			document.getElementById('form_existing_image').value = p.image || '';
+			document.getElementById('form_notes').value = p.notes;
 			openDrawer('drawer');
 		}
 
 		function openUse(p) {
 			document.getElementById('use_form_id').value = p.id;
-			document.getElementById('currentStockDisplay').innerText = p.qty + " " + p.unit;
 			document.getElementById('use_form_date').value = new Date().toISOString().slice(0, 16);
+			document.getElementById('use_form_unit').value = p.unit;
+			document.getElementById('currentStockDisplay').innerHTML = p.qty + " " + p.unit;
 			openDrawer('useDrawer');
+		}
+
+		async function showDetails(p) {
+			const img = p.image || PLACEHOLDER;
+			const expired = p.exp && new Date(p.exp) < new Date();
+			document.getElementById('detailsContent').innerHTML = `
+                <img src="${img}" class="details-img" onerror="this.src='${PLACEHOLDER}'">
+                <div class="info-item"><span class="info-label">Produit</span><span class="info-value">${p.name}</span></div>
+                <div style="display:flex; gap:20px;">
+                    <div class="info-item" style="flex:1;"><span class="info-label">Stock</span><span class="info-value">${p.qty} ${p.unit}</span></div>
+                    <div class="info-item" style="flex:1;"><span class="info-label">Achat</span><span class="info-value">${p.buyDate}</span></div>
+                </div>
+                <div class="info-item"><span class="info-label">Expiration</span><span class="info-value" style="color:${expired ? 'red':'inherit'}">${p.exp || 'N/A'}</span></div>
+                <div class="info-item"><span class="info-label">Historique</span><div id="logsTimeline" class="timeline">Chargement...</div></div>
+            `;
+			openDrawer('detailsDrawer');
+			const res = await fetch(`${API_URL}?fetch_logs=${p.id}`);
+			const logs = await res.json();
+			document.getElementById('logsTimeline').innerHTML = logs.map(l => `<div class="log-item"><span class="log-date">${l.action_date}</span><b>${l.action_type}:</b> ${l.details}</div>`).join('') || "Aucun historique.";
 		}
 
 		function openDrawer(id) {
@@ -591,12 +817,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		function closeDrawer() {
 			document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open'));
-			document.getElementById('overlay').style.display = 'none';
-		}
-
-		function switchPage(id) {
-			document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-			document.getElementById(id).classList.add('active');
+			document.getElementById('overlay').style.display = "none";
 		}
 		window.onload = loadProducts;
 	</script>

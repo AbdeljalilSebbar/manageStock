@@ -57,18 +57,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$action = $_POST['action'] ?? '';
 	// hadi bch add new product
 	if ($action === 'save') {
-
 		$id = $_POST['id'] ?? null;
 		$name = $_POST['name'] ?? '';
 		$cat = $_POST['cat'] ?? '';
 		$buyDate = $_POST['buyDate'] ?? '';
-		$qty = (isset($_POST['qty']) && $_POST['qty'] !== '') ? floatval($_POST['qty']) : 0;
+		$input_qty = (isset($_POST['qty']) && $_POST['qty'] !== '') ? floatval($_POST['qty']) : 0;
 		$unit = $_POST['unit'] ?? '';
+		$input_unit = $_POST['input_unit'] ?? $unit;
 		$exp = $_POST['exp'] ?? '';
 		$notes = $_POST['notes'] ?? '';
 		$imagePath = $_POST['existing_image'] ?? null;
 
-
+		$final_qty = $input_qty;
+		if ($input_unit !== $unit) {
+			$u1 = strtolower(trim($input_unit));
+			$u2 = strtolower(trim($unit));
+			if ($u1 == 'kg' && ($u2 == 'tonnes' || $u2 == 't'))
+				$final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && $u2 == 'kg')
+				$final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && ($u2 == 'tonnes' || $u2 == 't'))
+				$final_qty = $input_qty / 1000000;
+			elseif ($u1 == 'ml' && $u2 == 'l')
+				$final_qty = $input_qty / 1000;
+			elseif (($u1 == 'tonnes' || $u1 == 't') && $u2 == 'kg')
+				$final_qty = $input_qty * 1000;
+			echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
+		}
 		// TRAITEMENT IMAGE
 		if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
 			$tmpPath = $_FILES['image']['tmp_name'];
@@ -126,36 +141,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 		$lastAction = !empty($id) ? "Modifié le " . date('d/m/Y') : "Ajouté le " . date('d/m/Y');
-		if (!empty($id)) {
-			$sql = "UPDATE products SET name=?, catégorie=?, buyDate=?, qty=?, unit=?, exp=?, notes=?, lastAction=?, image=? WHERE id=?";
-			$params = [$name, $cat, $buyDate, $qty, $unit, $exp, $notes, $lastAction, $imagePath, $id];
-		} else {
-			$sql = "INSERT INTO products (name, catégorie, buyDate, first_qty, qty, unit, exp, notes, lastAction, image, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1')";
-			$params = [$name, $cat, $buyDate, $qty, $qty, $unit, $exp, $notes, $lastAction, $imagePath];
-		}
-		// drt had bch mydkhl l dbase chi hja ila fhalt can kol had inputs 3mriin sfuu.
-		// if (
-		// 	!empty($_POST['name']) && !empty($_POST['cat']) && !empty($_POST['buyDate']) &&
-		// 	!empty($_POST['qty']) && !empty($_POST['unit']) && !empty($_POST['exp']) && !empty($_POST['notes'])
-		// )
-		if (!empty($name) && $qty !== '') {
-			$pdo->prepare($sql)->execute($params);
 
+		if (!empty($name)) {
+			if (!empty($id)) {
+				$sql = "UPDATE products SET name=?, catégorie=?, buyDate=?, qty=?, unit=?, exp=?, notes=?, lastAction=?, image=? WHERE id=?";
+				$params = [$name, $cat, $buyDate, $final_qty, $unit, $exp, $notes, $lastAction, $imagePath, $id];
+			} else {
+				$sql = "INSERT INTO products (name, catégorie, buyDate, first_qty, qty, unit, exp, notes, lastAction, image, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1')";
+				$params = [$name, $cat, $buyDate, $final_qty, $final_qty, $unit, $exp, $notes, $lastAction, $imagePath];
+			}
+
+			$pdo->prepare($sql)->execute($params);
 			$currentId = $id ?: $pdo->lastInsertId();
 			$logType = !empty($id) ? "Modification" : "Ajout";
+			$logDetail = ($input_unit !== $unit) ? "Entrée: $input_qty $input_unit (Converti en $final_qty $unit)" : "Entrée de stock: $final_qty $unit";
 
-			addLog(
-				$pdo,
-				$currentId,
-				$name,
-				$cat,
-				$buyDate,
-				$qty,
-				$unit,
-				$logType,
-				"Entrée de stock (First Qty: $qty)",
-				$notes
-			);
+			addLog($pdo, $currentId, $name, $cat, $buyDate, $final_qty, $unit, $logType, $logDetail, $notes);
 		}
 		header('Content-Type: application/json');
 		echo json_encode(['success' => true, 'path' => $imagePath]);
@@ -164,33 +165,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	// hna nst3ml chi product
 	if ($action === 'use') {
 		$id = intval($_POST['id']);
-		$used_qty = floatval($_POST['used_qty']);
+		$input_qty = floatval($_POST['used_qty']);
+		$input_unit = $_POST['used_unit'] ?? '';
 		$formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
 
-		// 1. Kan-jbdou m3loumat l-produit bach n-3mrou l-log kamel
 		$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
 		$s->execute([$id]);
 		$p = $s->fetch();
 
 		if ($p) {
-			$unit = $p['unit'];
-			$lastAction = "⚡ Utilisé ($used_qty $unit) le $formatted_date";
+			$base_unit = strtolower(trim($p['unit']));
+			$used_unit = strtolower(trim($input_unit));
+			$converted_qty = $input_qty;
 
-			// 2. Update l-stock f l-table products
-			$sql = "UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?";
-			$pdo->prepare($sql)->execute([$used_qty, $lastAction, $id]);
+			if ($used_unit !== $base_unit) {
+				// All checks must be in lowercase here
+				if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+					$converted_qty = $input_qty / 1000;
+				} elseif ($used_unit == 'g' && $base_unit == 'kg') {
+					$converted_qty = $input_qty / 1000;
+				} elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+					$converted_qty = $input_qty / 1000000;
+				} elseif ($used_unit == 'ml' && $base_unit == 'l') {
+					$converted_qty = $input_qty / 1000;
+				} elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') {
+					$converted_qty = $input_qty * 1000;
+				}
+			}
 
-			// 3. Sejel l-Log b ga3 l-m3loumat (Catégorie, BuyDate, Notes...)
+			$lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
+
+			// Execute the subtraction
+			$stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
+			$stmt->execute([$converted_qty, $lastAction, $id]);
+
 			addLog(
 				$pdo,
 				$id,
 				$p['name'],
 				$p['catégorie'],
 				$p['buyDate'],
-				$used_qty,
-				$unit,
+				$converted_qty,
+				$p['unit'],
 				'Utilisation',
-				"Consommé le $formatted_date",
+				"Consommé $input_qty $input_unit (soit $converted_qty {$p['unit']})",
 				$p['notes']
 			);
 		}
@@ -563,7 +581,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			font-size: 0.75rem;
 			display: block;
 		}
-
 	</style>
 </head>
 
@@ -722,7 +739,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<div class="drawer" id="detailsDrawer" style="display: flex; flex-direction: column;">
 		<h2>Détails du Produit</h2>
 
-			
+
 		<div id="detailsContent" style="flex: 1; overflow-y: auto; padding-right: 10px; max-height: 77%;">
 		</div>
 
