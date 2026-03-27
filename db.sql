@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS `products` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+ALTER TABLE products 
+MODIFY COLUMN qty DECIMAL(15, 4) NOT NULL DEFAULT '0.0000',
+MODIFY COLUMN first_qty DECIMAL(15, 4) NOT NULL DEFAULT '0.0000';
+
 
 CREATE TABLE IF NOT EXISTS `product_logs` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -33,3 +37,16 @@ CREATE TABLE IF NOT EXISTS `product_logs` (
   PRIMARY KEY (`id`),
   INDEX (`product_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE
+);
+
+-- نزيدو الأصناف اللي عندك دابا كبداية
+INSERT IGNORE INTO categories (name) VALUES 
+('Alaf / Aliments bétail'), 
+('Dwa / Médicaments vétérinaires'), 
+('Engrais / Fertilizers'), 
+('Semences');

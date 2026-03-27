@@ -1,8 +1,8 @@
 <?php
-$host = "localhost";
-$dbname = "stocktable";
-$user = "root";
-$pass = "";
+$host = "193.203.168.42";
+$dbname = "u899739665_s_inbat_work";
+$user = "u899739665_s_inbat_work";
+$pass = "U3&bwEytJ";
 
 try {
 	$pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass, [
@@ -41,7 +41,6 @@ if (isset($_GET['fetch_logs'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
 	function addLog($pdo, $p_id, $name, $cat, $buyDate, $qty, $unit, $type, $details, $notes)
 	{
 		$sql = "INSERT INTO product_logs 
@@ -66,21 +65,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$imagePath = $_POST['existing_image'] ?? null;
 
 		$final_qty = $input_qty;
-		echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
 		if ($input_unit !== $unit) {
 			$u1 = strtolower(trim($input_unit));
 			$u2 = strtolower(trim($unit));
-			if ($u1 == 'kg' && ($u2 == 'tonnes' || $u2 == 't'))
-				$final_qty = $input_qty / 1000;
-			elseif ($u1 == 'g' && $u2 == 'kg')
-				$final_qty = $input_qty / 1000;
-			elseif ($u1 == 'g' && ($u2 == 'tonnes' || $u2 == 't'))
-				$final_qty = $input_qty / 1000000;
-			elseif ($u1 == 'ml' && $u2 == 'l')
-				$final_qty = $input_qty / 1000;
-			elseif (($u1 == 'tonnes' || $u1 == 't') && $u2 == 'kg')
-				$final_qty = $input_qty * 1000;
-			echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
+			if ($u1 == 'kg' && ($u2 == 'tonnes' || $u2 == 't')) $final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && $u2 == 'kg') $final_qty = $input_qty / 1000;
+			elseif ($u1 == 'g' && ($u2 == 'tonnes' || $u2 == 't')) $final_qty = $input_qty / 1000000;
+			elseif ($u1 == 'ml' && $u2 == 'l') $final_qty = $input_qty / 1000;
+			elseif (($u1 == 'tonnes' || $u1 == 't') && $u2 == 'kg') $final_qty = $input_qty * 1000;
 		}
 
 		if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
@@ -94,35 +86,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				try {
 					$img = null;
 					switch ($info[2]) {
-						case IMAGETYPE_JPEG:
-							$img = @imagecreatefromjpeg($tmpPath);
-							break;
-						case IMAGETYPE_PNG:
-							$img = @imagecreatefrompng($tmpPath);
-							break;
-						case IMAGETYPE_WEBP:
-							$img = @imagecreatefromwebp($tmpPath);
-							break;
+						case IMAGETYPE_JPEG: $img = @imagecreatefromjpeg($tmpPath); break;
+						case IMAGETYPE_PNG: $img = @imagecreatefrompng($tmpPath); break;
+						case IMAGETYPE_WEBP: $img = @imagecreatefromwebp($tmpPath); break;
 					}
 					if ($img && function_exists('imagewebp')) {
-						if ($info[2] === IMAGETYPE_PNG) {
-							imagepalettetotruecolor($img);
-							imagealphablending($img, true);
-							imagesavealpha($img, true);
-						}
-						if (imagewebp($img, $target, 80)) {
-							$imagePath = $target;
-							$imgSuccess = true;
-						}
+						if ($info[2] === IMAGETYPE_PNG) { imagepalettetotruecolor($img); imagealphablending($img, true); imagesavealpha($img, true); }
+						if (imagewebp($img, $target, 80)) { $imagePath = $target; $imgSuccess = true; }
 						imagedestroy($img);
 					}
-				} catch (Exception $e) {
-					$imgSuccess = false;
-				}
+				} catch (Exception $e) { $imgSuccess = false; }
 			}
 			if (!$imgSuccess) {
 				$rawTarget = 'uploads/' . uniqid() . '.' . $extension;
-				if (move_uploaded_file($tmpPath, $rawTarget)) $imagePath = $rawTarget;
+				if (move_uploaded_file($tmpPath, $rawTarget)) { $imagePath = $rawTarget; }
 			}
 		}
 
@@ -136,70 +113,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				$sql = "INSERT INTO products (name, catégorie, buyDate, first_qty, qty, unit, exp, notes, lastAction, image, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1')";
 				$params = [$name, $cat, $buyDate, $final_qty, $final_qty, $unit, $exp, $notes, $lastAction, $imagePath];
 			}
-
 			$pdo->prepare($sql)->execute($params);
 			$currentId = $id ?: $pdo->lastInsertId();
 			$logType = !empty($id) ? "Modification" : "Ajout";
 			$logDetail = ($input_unit !== $unit) ? "Entrée: $input_qty $input_unit (Converti en $final_qty $unit)" : "Entrée de stock: $final_qty $unit";
-
 			addLog($pdo, $currentId, $name, $cat, $buyDate, $final_qty, $unit, $logType, $logDetail, $notes);
 		}
-
 		header('Content-Type: application/json');
 		echo json_encode(['success' => true, 'path' => $imagePath]);
 		exit;
 	}
 
-	if ($action === 'use') {
-		$id = intval($_POST['id']);
-		$input_qty = floatval($_POST['used_qty']);
-		$input_unit = $_POST['used_unit'] ?? '';
-		$formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
+    if ($action === 'use') {
+        $id = intval($_POST['id']);
+        $input_qty = floatval($_POST['used_qty']);
+        $input_unit = $_POST['used_unit'] ?? '';
+        $formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
 
-		$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
-		$s->execute([$id]);
-		$p = $s->fetch();
+        $s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
+        $s->execute([$id]);
+        $p = $s->fetch();
 
-		if ($p) {
-			$base_unit = strtolower(trim($p['unit']));
-			$used_unit = strtolower(trim($input_unit));
-			$converted_qty = $input_qty;
+        if ($p) {
+            $base_unit = strtolower(trim($p['unit']));
+            $used_unit = strtolower(trim($input_unit));
+            $converted_qty = $input_qty;
 
-			if ($used_unit !== $base_unit) {
-				// All checks must be in lowercase here
-				if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) {
-					$converted_qty = $input_qty / 1000;
-				} elseif ($used_unit == 'g' && $base_unit == 'kg') {
-					$converted_qty = $input_qty / 1000;
-				} elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) {
-					$converted_qty = $input_qty / 1000000;
-				} elseif ($used_unit == 'ml' && $base_unit == 'l') {
-					$converted_qty = $input_qty / 1000;
-				} elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') {
-					$converted_qty = $input_qty * 1000;
-				}
-			}
+            // تحويل الوحدات (نفس الكود اللي كان عندك)
+            if ($used_unit !== $base_unit) {
+                if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) $converted_qty = $input_qty / 1000;
+                elseif ($used_unit == 'g' && $base_unit == 'kg') $converted_qty = $input_qty / 1000;
+                elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) $converted_qty = $input_qty / 1000000;
+                elseif ($used_unit == 'ml' && $base_unit == 'l') $converted_qty = $input_qty / 1000;
+                elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') $converted_qty = $input_qty * 1000;
+            }
 
-			$lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
+            // --- الزيادة المهمة هنا: التحقق من الكمية ---
+            if ($converted_qty > $p['qty']) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'الكمية غير كافية! المتوفر حاليا هو: ' . $p['qty'] . ' ' . $p['unit']]);
+                exit;
+            }
 
-			// Execute the subtraction
-			$stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
-			$stmt->execute([$converted_qty, $lastAction, $id]);
-
-			addLog(
-				$pdo,
-				$id,
-				$p['name'],
-				$p['catégorie'],
-				$p['buyDate'],
-				$converted_qty,
-				$p['unit'],
-				'Utilisation',
-				"Consommé $input_qty $input_unit (soit $converted_qty {$p['unit']})",
-				$p['notes']
-			);
-		}
-	}
+            $lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
+            $stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
+            $stmt->execute([$converted_qty, $lastAction, $id]);
+            
+            addLog($pdo, $id, $p['name'], $p['catégorie'], $p['buyDate'], $converted_qty, $p['unit'], 'Utilisation', "Consommé $input_qty $input_unit", $p['notes']);
+            
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+            exit;
+        }
+    }
 
 	if ($action === 'delete') {
 		$id = intval($_POST['id']);
@@ -210,591 +176,566 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$pdo->prepare("UPDATE products SET status = '0' WHERE id = ?")->execute([$id]);
 			addLog($pdo, $id, $p['name'], $p['catégorie'], $p['buyDate'], $p['qty'], $p['unit'], 'Suppression', "Produit archivé", $p['notes']);
 		}
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
+        exit;
 	}
-	header('Content-Type: application/json');
-	echo json_encode(['success' => true]);
-	exit;
 }
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AgriStock Pro</title>
-	<style>
-		:root {
-			--primary: #2d6a4f;
-			--secondary: #52b788;
-			--bg: #f4f7f6;
-			--text: #1e293b;
-			--danger: #ef4444;
-			--gray: #64748b;
-			--success: #16a34a;
-			--use-color: #0ea5e9;
-		}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriStock Pro</title>
+    <style>
+    :root {
+        --primary: #2d6a4f;
+        --secondary: #52b788;
+        --bg: #f4f7f6;
+        --text: #1e293b;
+        --danger: #ef4444;
+        --warning: #f59e0b;
+        --gray: #64748b;
+        --success: #16a34a;
+        --use-color: #0ea5e9;
+    }
 
-		body {
-			font-family: 'Segoe UI', sans-serif;
-			background: var(--bg);
-			color: var(--text);
-			margin: 0;
-			display: flex;
-			height: 100vh;
-			overflow: hidden;
-		}
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
 
-		nav {
-			width: 80px;
-			background: var(--primary);
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			padding: 20px 0;
-			color: white;
-		}
+    nav {
+        width: 80px;
+        background: var(--primary);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px 0;
+        color: white;
+    }
 
-		main {
-			flex: 1;
-			padding: 30px;
-			overflow-y: auto;
-		}
+    main {
+        flex: 1;
+        padding: 30px;
+        overflow-y: auto;
+    }
 
-		header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: 20px;
-		}
+    header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
 
-		.stats-grid {
-			display: grid;
-			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-			gap: 15px;
-			margin-bottom: 25px;
-		}
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
 
-		.stat-card {
-			background: white;
-			padding: 20px;
-			border-radius: 12px;
-			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-			border-left: 5px solid var(--primary);
-		}
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        border-left: 5px solid var(--primary);
+    }
 
-		.stat-card h3 {
-			margin: 0;
-			font-size: 0.75rem;
-			color: var(--gray);
-			text-transform: uppercase;
-			letter-spacing: 1px;
-		}
+    .stat-card h3 {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
 
-		.stat-card .value {
-			font-size: 1.6rem;
-			font-weight: bold;
-			margin-top: 5px;
-			color: var(--primary);
-		}
+    .stat-card .value {
+        font-size: 1.6rem;
+        font-weight: bold;
+        margin-top: 5px;
+        color: var(--primary);
+    }
 
-		.stat-card .unit {
-			font-size: 0.9rem;
-			color: var(--gray);
-			margin-left: 5px;
-		}
+    .stat-card .unit {
+        font-size: 0.9rem;
+        color: var(--gray);
+        margin-left: 5px;
+    }
 
-		.table-container {
-			background: white;
-			border-radius: 12px;
-			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-			overflow-x: auto;
-		}
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        overflow-x: auto;
+    }
 
-		table {
-			width: 100%;
-			border-collapse: collapse;
-			min-width: 900px;
-		}
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 900px;
+    }
 
-		th {
-			background: #f8fafc;
-			padding: 15px;
-			text-align: left;
-			color: var(--gray);
-			font-size: 0.85rem;
-			border-bottom: 2px solid #edf2f7;
-		}
+    th {
+        background: #f8fafc;
+        padding: 15px;
+        text-align: left;
+        color: var(--gray);
+        font-size: 0.85rem;
+        border-bottom: 2px solid #edf2f7;
+    }
 
-		td {
-			padding: 15px;
-			border-bottom: 1px solid #f1f5f9;
-			font-size: 0.9rem;
-		}
+    td {
+        padding: 15px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.9rem;
+    }
 
-		.btn {
-			padding: 8px 14px;
-			border-radius: 8px;
-			border: none;
-			cursor: pointer;
-			font-weight: 600;
-			font-size: 0.85rem;
-		}
+    .btn {
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
 
-		.search-input {
-			padding: 10px 15px;
-			border: 1px solid #ddd;
-			border-radius: 8px;
-			width: 300px;
-			margin-bottom: 15px;
-			font-size: 0.9rem;
-			outline: none;
-			transition: 0.2s;
-		}
+    .search-input {
+        padding: 10px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        width: 300px;
+        margin-bottom: 15px;
+        font-size: 0.9rem;
+        outline: none;
+    }
 
-		.search-input:focus {
-			border-color: var(--primary);
-			box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.2);
-		}
+    .stock-info-box {
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
 
-		.stock-info-box {
-			background: #f8fafc;
-			border: 1px dashed #cbd5e1;
-			padding: 15px;
-			border-radius: 8px;
-			margin-bottom: 20px;
-			text-align: center;
-		}
+    .stock-info-box span {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--primary);
+        display: block;
+        margin-top: 5px;
+    }
 
-		.stock-info-box span {
-			font-size: 1.5rem;
-			font-weight: bold;
-			color: var(--primary);
-			display: block;
-			margin-top: 5px;
-		}
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
 
-		.btn-primary {
-			background: var(--primary);
-			color: white;
-		}
+    .btn-outline {
+        background: white;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+    }
 
-		.btn-outline {
-			background: white;
-			color: var(--primary);
-			border: 1px solid var(--primary);
-		}
+    .btn-danger {
+        background: #fee2e2;
+        color: var(--danger);
+    }
 
-		.btn-danger {
-			background: #fee2e2;
-			color: var(--danger);
-		}
+    .btn-use {
+        background: #e0f2fe;
+        color: var(--use-color);
+    }
 
-		.btn-use {
-			background: #e0f2fe;
-			color: var(--use-color);
-		}
+    .btn-disabled {
+        background: #f1f5f9;
+        color: #94a3b8;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
 
-		.drawer {
-			position: fixed;
-			top: 0;
-			right: -500px;
-			width: 400px;
-			height: 100vh;
-			background: white;
-			box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
-			transition: 0.4s;
-			padding: 30px;
-			z-index: 100;
-			overflow-y: auto;
-		}
+    .drawer {
+        position: fixed;
+        top: 0;
+        right: -500px;
+        width: 400px;
+        height: 100vh;
+        background: white;
+        box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
+        transition: 0.4s;
+        padding: 30px;
+        z-index: 100;
+        overflow-y: auto;
+    }
 
-		.drawer.open {
-			right: 0;
-		}
+    .drawer.open {
+        right: 0;
+    }
 
-		.prod-img {
-			width: 40px;
-			height: 40px;
-			border-radius: 50%;
-			object-fit: cover;
-			background: #eee;
-		}
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 90;
+    }
 
-		.overlay {
-			position: fixed;
-			top: 0;
-			left: 0;
-			width: 100%;
-			height: 100%;
-			background: rgba(0, 0, 0, 0.5);
-			display: none;
-			z-index: 90;
-		}
+    .form-group {
+        margin-bottom: 15px;
+    }
 
-		.form-group {
-			margin-bottom: 15px;
-		}
+    input,
+    select,
+    textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: inherit;
+        box-sizing: border-box;
+    }
 
-		input[type="text"]:not(.search-input),
-		input[type="number"],
-		input[type="date"],
-		input[type="datetime-local"],
-		select,
-		textarea {
-			width: 100%;
-			padding: 10px;
-			border: 1px solid #ddd;
-			border-radius: 6px;
-			font-family: inherit;
-		}
+    .badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
 
-		.page-section {
-			display: none;
-		}
+    .bg-ok {
+        background: #dcfce7;
+        color: var(--success);
+    }
 
-		.active {
-			display: block;
-		}
+    .bg-low {
+        background: #ffedd5;
+        color: var(--warning);
+    }
 
-		.badge {
-			padding: 4px 10px;
-			border-radius: 6px;
-			font-size: 0.75rem;
-			font-weight: bold;
-		}
+    .bg-empty {
+        background: #fee2e2;
+        color: var(--danger);
+        border: 1px solid #fecaca;
+    }
 
-		.bg-ok {
-			background: #dcfce7;
-			color: var(--success);
-		}
+    .prod-img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #eee;
+    }
 
-		.bg-low {
-			background: #ffedd5;
-			color: #f59e0b;
-		}
+    .timeline {
+        margin-top: 15px;
+        border-left: 2px solid #e2e8f0;
+        padding-left: 15px;
+    }
 
-		tr.clickable:hover {
-			background: #f0fdf4;
-			cursor: pointer;
-		}
+    .log-item {
+        margin-bottom: 12px;
+        position: relative;
+        font-size: 0.85rem;
+    }
 
-		.details-img {
-			width: 100%;
-			height: 200px;
-			object-fit: cover;
-			border-radius: 12px;
-			margin-bottom: 20px;
-			border: 1px solid #ddd;
-		}
+    .log-item::before {
+        content: '';
+        position: absolute;
+        left: -21px;
+        top: 5px;
+        width: 10px;
+        height: 10px;
+        background: var(--primary);
+        border-radius: 50%;
+    }
 
-		.info-item {
-			margin-bottom: 15px;
-			border-bottom: 1px solid #eee;
-			padding-bottom: 8px;
-		}
+    .details-img {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #ddd;
+    }
 
-		.info-label {
-			color: var(--gray);
-			font-size: 0.75rem;
-			text-transform: uppercase;
-			display: block;
-		}
+    .info-label {
+        color: var(--gray);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        display: block;
+    }
 
-		.info-value {
-			font-weight: bold;
-			font-size: 1.1rem;
-			color: var(--primary);
-		}
-
-		.notes-box {
-			background: #f9f9f9;
-			padding: 10px;
-			border-radius: 8px;
-			border-left: 4px solid var(--primary);
-			margin-top: 10px;
-		}
-
-		.timeline {
-			margin-top: 15px;
-			border-left: 2px solid #e2e8f0;
-			padding-left: 15px;
-		}
-
-		.log-item {
-			margin-bottom: 12px;
-			position: relative;
-			font-size: 0.85rem;
-		}
-
-		.log-item::before {
-			content: '';
-			position: absolute;
-			left: -21px;
-			top: 5px;
-			width: 10px;
-			height: 10px;
-			background: var(--primary);
-			border-radius: 50%;
-		}
-
-		.log-date {
-			color: var(--gray);
-			font-size: 0.75rem;
-			display: block;
-		}
-	</style>
+    .info-value {
+        font-weight: bold;
+        font-size: 1.1rem;
+        color: var(--primary);
+    }
+    </style>
 </head>
 
 <body>
-	<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+    <div class="overlay" id="overlay" onclick="closeDrawer()"></div>
 
-	<div class="drawer" id="drawer">
-		<h2 id="drawerTitle">Produit</h2>
-		<form id="saveForm">
-			<input type="hidden" name="action" value="save">
-			<input type="hidden" name="id" id="form_id">
-			<input type="hidden" name="existing_image" id="form_existing_image">
-			<div class="form-group"><label>Image</label><input type="file" name="image" accept="image/*"></div>
-			<div class="form-group">
-				<label>Nom</label>
-				<input type="text" name="name" id="form_name" required>
-			</div>
-			<div class="form-group">
-				<label>Catégorie</label>
-				<input type="text" name="cat" id="form_cat" list="category_options" required>
-				<datalist id="category_options">
-					<option value="Alaf / Aliments bétail">
-					<option value="Dwa / Médicaments vétérinaires">
-					<option value="Engrais / Fertilizers">
-					<option value="Semences">
-				</datalist>
-			</div>
-			<div style="display: flex; gap: 10px;">
-				<div class="form-group" style="flex:2;">
-					<label>Quantité</label>
-					<input type="number" name="qty" id="form_qty" step="0.0001" required>
-				</div>
-				<div class="form-group" style="flex:1;">
-					<label>Unité Saisie</label>
-					<select name="input_unit" id="form_input_unit">
-						<option value="KG">KG</option>
-						<option value="G">G</option>
-						<option value="Tonnes">Tonnes</option>
-						<option value="L">L</option>
-						<option value="mL">ml</option>
-					</select>
-				</div>
-			</div>
-			<div class="form-group">
-				<label>Unité Stock (Base)</label>
-				<input type="text" name="unit" id="form_unit" list="unit_options" placeholder="ex: Tonnes" required>
-				<datalist id="unit_options">
-					<option value="KG">
-					<option value="Tonnes">
-					<option value="L">
-					<option value="Sacs">
-				</datalist>
-			</div>
-			<div class="form-group"><label>Achat</label><input type="date" name="buyDate" id="form_buy" required></div>
-			<div class="form-group"><label>Exp</label><input type="date" name="exp" id="form_exp"></div>
-			<div class="form-group"><label>Notes</label><textarea name="notes" id="form_notes"></textarea></div>
-			<button type="submit" class="btn btn-primary" style="width: 100%;">💾 Enregistrer</button>
-		</form>
-	</div>
+    <div class="drawer" id="drawer">
+        <h2 id="drawerTitle">Produit</h2>
+        <form id="saveForm">
+            <input type="hidden" name="action" value="save">
+            <input type="hidden" name="id" id="form_id">
+            <input type="hidden" name="existing_image" id="form_existing_image">
+            <div class="form-group"><label>Image</label><input type="file" name="image" accept="image/*"></div>
+            <div class="form-group"><label>Nom</label><input type="text" name="name" id="form_name" required></div>
+            <div class="form-group"><label>Catégorie</label><input type="text" name="cat" id="form_cat"
+                    list="category_options" required></div>
+            <datalist id="category_options">
+                <option value="Alaf">
+                <option value="Dwa">
+                <option value="Engrais">
+                <option value="Semences">
+            </datalist>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group"><label>Quantité</label><input type="number" name="qty" id="form_qty" step="0.01"
+                        required></div>
+                <div class="form-group" style="flex:1;"><label>Unité</label><input type="text" name="unit"
+                        id="form_unit" list="unit_options" required></div>
+            </div>
+            <datalist id="unit_options">
+                <option value="KG">
+                <option value="G">
+                <option value="Tonnes">
+                <option value="L">
+                <option value="ml">
+                <option value="Sacs">
+            </datalist>
+            <div class="form-group"><label>Achat</label><input type="date" name="buyDate" id="form_buy" required></div>
+            <div class="form-group"><label>Exp</label><input type="date" name="exp" id="form_exp"></div>
+            <div class="form-group"><label>Notes</label><textarea name="notes" id="form_notes"></textarea></div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">💾 Enregistrer</button>
+        </form>
+    </div>
 
-	<div class="drawer" id="useDrawer">
-		<h2>⚡ Utiliser</h2>
-		<div class="stock-info-box">Stock Disponible: <span id="currentStockDisplay">0 KG</span></div>
-		<form id="useForm">
-			<input type="hidden" name="action" value="use">
-			<input type="hidden" name="id" id="use_form_id">
-			<div class="form-group">
-				<label>Quantité à retirer</label>
-				<div style="display: flex; gap: 10px;">
-					<input type="number" name="used_qty" id="use_form_qty" step="0.0001" required style="flex:2;">
-					<select name="used_unit" id="use_form_unit" style="flex:1;">
-						<option value="KG">KG</option>
-						<option value="G">G</option>
-						<option value="Tonnes">Tonnes</option>
-						<option value="L">L</option>
-						<option value="ml">ml</option>
-					</select>
-				</div>
-			</div>
-			<div class="form-group"><label>Date</label><input type="datetime-local" name="use_date" id="use_form_date" required></div>
-			<button type="submit" class="btn btn-use" style="width: 100%; color: white;">✓ Valider</button>
-		</form>
-	</div>
+    <div class="drawer" id="useDrawer">
+        <h2>⚡ Utiliser</h2>
+        <div class="stock-info-box">Stock Disponible: <span id="currentStockDisplay">0 KG</span></div>
+        <form id="useForm">
+            <input type="hidden" name="action" value="use">
+            <input type="hidden" name="id" id="use_form_id">
+            <div class="form-group">
+                <label>Quantité à retirer</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" name="used_qty" id="use_form_qty" step="0.01" min="0.01" required
+                        style="flex: 2;">
+                    <input type="text" name="used_unit" id="use_form_unit" list="units_list" placeholder="Unité"
+                        required style="flex: 1;">
+                </div>
+            </div>
+            <div class="form-group"><label>Date</label><input type="datetime-local" name="use_date" id="use_form_date"
+                    required></div>
+            <button type="submit" class="btn btn-use" style="width: 100%; color: white;">✓ Valider</button>
+        </form>
+    </div>
 
-	<nav>
-		<div style="font-size: 32px; margin-top: 20px;">🌾</div>
-	</nav>
-	<main>
-		<header>
-			<h1>AgriStock Pro</h1>
-			<div>
-				<button class="btn btn-outline" onclick="switchPage('dashboard')">📊 Dashboard</button>
-				<button class="btn btn-primary" onclick="switchPage('manage')">⚙️ Gestion</button>
-			</div>
-		</header>
+    <nav>
+        <div style="font-size: 32px; margin-top: 20px;">🌾</div>
+    </nav>
+    <main>
+        <header>
+            <h1>AgriStock Pro</h1>
+            <div>
+                <button class="btn btn-outline" onclick="switchPage('dashboard')">📊 Dashboard</button>
+                <button class="btn btn-primary" onclick="switchPage('manage')">⚙️ Gestion</button>
+            </div>
+        </header>
 
-		<section id="dashboard" class="page-section active">
-			<div id="statsSummary" class="stats-grid"></div>
-			<input type="text" class="search-input" placeholder="🔍 Rechercher..." onkeyup="searchTable(this, 'dashTable')">
-			<div class="table-container">
-				<table id="dashTable">
-					<thead>
-						<tr>
-							<th>Produit</th>
-							<th>Catégorie</th>
-							<th>Stock</th>
-							<th>Achat</th>
-							<th>Exp</th>
-							<th>Action</th>
-						</tr>
-					</thead>
-					<tbody></tbody>
-				</table>
-			</div>
-		</section>
+        <section id="dashboard" class="page-section active">
+            <div id="statsSummary" class="stats-grid"></div>
+            <input type="text" class="search-input" placeholder="🔍 Rechercher..."
+                onkeyup="searchTable(this, 'dashTable')">
+            <div class="table-container">
+                <table id="dashTable">
+                    <thead>
+                        <tr>
+                            <th>Produit</th>
+                            <th>Catégorie</th>
+                            <th>Stock</th>
+                            <th>Achat</th>
+                            <th>Exp</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
 
-		<section id="manage" class="page-section">
-			<input type="text" class="search-input" placeholder="🔍 Rechercher..." onkeyup="searchTable(this, 'manTable')">
-			<button class="btn btn-primary" onclick="openAdd()" style="margin-bottom: 20px;">+ Nouveau</button>
-			<div class="table-container">
-				<table id="manTable">
-					<thead>
-						<tr>
-							<th>Nom</th>
-							<th>Catégorie</th>
-							<th>Stock</th>
-							<th>Achat</th>
-							<th>Exp</th>
-							<th>Dernière Action</th>
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody></tbody>
-				</table>
-			</div>
-		</section>
-	</main>
+        <section id="manage" class="page-section">
+            <input type="text" class="search-input" placeholder="🔍 Rechercher..."
+                onkeyup="searchTable(this, 'manTable')">
+            <button class="btn btn-primary" onclick="openAdd()" style="margin-bottom: 20px;">+ Nouveau</button>
+            <div class="table-container">
+                <table id="manTable">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Catégorie</th>
+                            <th>Stock</th>
+                            <th>Achat</th>
+                            <th>Exp</th>
+                            <th>Dernière Action</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
 
-	<div class="drawer" id="detailsDrawer">
-		<h2>Détails du Produit</h2>
-		<div id="detailsContent" style="max-height: 80%; overflow-y: auto;"></div>
-		<button class="btn btn-outline" style="width: 100%; margin-top: 20px;" onclick="closeDrawer()">Fermer</button>
-	</div>
+    <div class="drawer" id="detailsDrawer">
+        <h2>Détails</h2>
+        <div id="detailsContent" style="max-height: 80%; overflow-y: auto;"></div>
+        <button class="btn btn-outline" style="width: 100%; margin-top: 20px;" onclick="closeDrawer()">Fermer</button>
+    </div>
 
-	<script>
-		const API_URL = window.location.pathname;
-		const PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2250%22%20height%3D%2250%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23eee%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%20fill%3D%22%23aaa%22%3ENo%20Img%3C%2Ftext%3E%3C%2Fsvg%3E';
+    <script>
+    const API_URL = window.location.pathname;
+    const PLACEHOLDER =
+        'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2250%22%20height%3D%2250%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23eee%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%20fill%3D%22%23aaa%22%3ENo%20Img%3C%2Ftext%3E%3C%2Fsvg%3E';
 
-		function searchTable(input, tableId) {
-			let filter = input.value.toUpperCase();
-			let tr = document.getElementById(tableId).getElementsByTagName("tr");
-			for (let i = 1; i < tr.length; i++) {
-				tr[i].style.display = (tr[i].textContent.toUpperCase().indexOf(filter) > -1) ? "" : "none";
-			}
-		}
+    function searchTable(input, tableId) {
+        let filter = input.value.toUpperCase();
+        let tr = document.getElementById(tableId).getElementsByTagName("tr");
+        for (let i = 1; i < tr.length; i++) {
+            tr[i].style.display = tr[i].textContent.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+        }
+    }
 
-		async function loadProducts() {
-			const response = await fetch(API_URL + '?fetch=1');
-			const products = await response.json();
-			const dashBody = document.querySelector('#dashTable tbody');
-			const manBody = document.querySelector('#manTable tbody');
-			const statsSummary = document.getElementById('statsSummary');
+    async function loadProducts() {
+        const response = await fetch('index2.php?fetch=1');
+        const products = await response.json();
+        const dashBody = document.querySelector('#dashTable tbody');
+        const manBody = document.querySelector('#manTable tbody');
+        const statsSummary = document.getElementById('statsSummary');
 
-			dashBody.innerHTML = '';
-			manBody.innerHTML = '';
-			const totals = {};
+        dashBody.innerHTML = '';
+        manBody.innerHTML = '';
+        const totals = {};
 
-			products.forEach(p => {
-				const cat = p.catégorie || "Non classé";
-				const unit = p.unit || "u";
-				const qty = parseFloat(p.qty) || 0;
-				const img = p.image || PLACEHOLDER;
+        products.forEach(p => {
+            const cat = p.catégorie || "Non classé";
+            const unit = p.unit || "u";
+            const qty = parseFloat(p.qty) || 0;
+            const img = p.image ? p.image : PLACEHOLDER;
 
-				if (!totals[cat]) totals[cat] = {};
-				if (!totals[cat][unit]) totals[cat][unit] = 0;
-				totals[cat][unit] += qty;
+            if (!totals[cat]) totals[cat] = {};
+            totals[cat][unit] = (totals[cat][unit] || 0) + qty;
 
-				const badgeClass = qty <= 5 ? 'bg-low' : 'bg-ok';
-				const rowData = JSON.stringify(p).replace(/'/g, "&apos;");
+            // منطق الألوان وتعطيل الأزرار
+            let badgeClass = 'bg-ok';
+            let useBtnStyle = 'class="btn btn-use"';
+            let useBtnAction = `onclick='openUse(${JSON.stringify(p).replace(/'/g, "&apos;")})'`;
 
-				dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${rowData})'><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td></tr>`;
-				manBody.innerHTML += `<tr><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><b>${p.qty}</b> ${unit}</td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td><td><button class="btn btn-use" onclick='openUse(${rowData})'>⚡</button> <button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button> <button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></td></tr>`;
-			});
+            if (qty <= 0) {
+                badgeClass = 'bg-empty';
+                useBtnStyle = 'class="btn btn-disabled"';
+                useBtnAction = 'disabled';
+            } else if (qty <= 5) {
+                badgeClass = 'bg-low';
+            }
 
-			statsSummary.innerHTML = '';
-			for (const catName in totals) {
-				let lines = '';
-				for (const [u, v] of Object.entries(totals[catName])) lines += `<div class="value">${v.toFixed(2)}<span class="unit">${u}</span></div>`;
-				statsSummary.innerHTML += `<div class="stat-card"><h3>Total ${catName}</h3>${lines}</div>`;
-			}
-		}
+            const rowData = JSON.stringify(p).replace(/'/g, "&apos;");
+            dashBody.innerHTML +=
+                `<tr class="clickable" onclick='showDetails(${rowData})'><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td></tr>`;
+            manBody.innerHTML +=
+                `<tr><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><b>${p.qty}</b> ${unit}</td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td><td><div class="action-group"><button ${useBtnStyle} ${useBtnAction}>⚡</button><button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></div></td></tr>`;
+        });
 
-		document.querySelectorAll('form').forEach(f => {
-			f.onsubmit = async (e) => {
-				e.preventDefault();
-				await fetch(API_URL, {
-					method: 'POST',
-					body: new FormData(f)
-				});
-				closeDrawer();
-				loadProducts();
-			};
-		});
+        statsSummary.innerHTML = '';
+        for (const catName in totals) {
+            let lines = '';
+            for (const [un, val] of Object.entries(totals[catName])) lines +=
+                `<div class="value">${val.toFixed(2)}<span class="unit">${un}</span></div>`;
+            statsSummary.innerHTML += `<div class="stat-card"><h3>Total ${catName}</h3>${lines}</div>`;
+        }
+    }
 
-		async function deleteProduct(id) {
-			if (!confirm('Archiver ?')) return;
-			const fd = new FormData();
-			fd.append('action', 'delete');
-			fd.append('id', id);
-			await fetch(API_URL, {
-				method: 'POST',
-				body: fd
-			});
-			loadProducts();
-		}
+    document.querySelectorAll('form').forEach(f => {
+        f.onsubmit = async (e) => {
+            e.preventDefault();
+            // التحقق من استجابة السيرفر (منع الكمية السالبة)
+            const res = await fetch('index2.php', {
+                method: 'POST',
+                body: new FormData(f)
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeDrawer();
+                loadProducts();
+            } else {
+                alert("⚠️ " + (result.error || "Erreur"));
+            }
+        };
+    });
 
-		function switchPage(id) {
-			document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-			document.getElementById(id).classList.add('active');
-		}
+    async function deleteProduct(id) {
+        if (!confirm('Archiver ?')) return;
+        const fd = new FormData();
+        fd.append('action', 'delete');
+        fd.append('id', id);
+        await fetch('index2.php', {
+            method: 'POST',
+            body: fd
+        });
+        loadProducts();
+    }
 
-		function openAdd() {
-			document.getElementById('saveForm').reset();
-			document.getElementById('form_id').value = "";
-			openDrawer('drawer');
-		}
+    function switchPage(id) {
+        document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
 
-		function openEdit(p) {
-			document.getElementById('form_id').value = p.id;
-			document.getElementById('form_name').value = p.name;
-			document.getElementById('form_cat').value = p.catégorie;
-			document.getElementById('form_qty').value = p.qty;
-			document.getElementById('form_unit').value = p.unit;
-			document.getElementById('form_input_unit').value = p.unit;
-			document.getElementById('form_buy').value = p.buyDate;
-			document.getElementById('form_exp').value = p.exp;
-			document.getElementById('form_notes').value = p.notes;
-			openDrawer('drawer');
-		}
+    function openAdd() {
+        document.getElementById('saveForm').reset();
+        document.getElementById('form_id').value = "";
+        openDrawer('drawer');
+    }
 
-		function openUse(p) {
-			document.getElementById('use_form_id').value = p.id;
-			document.getElementById('use_form_date').value = new Date().toISOString().slice(0, 16);
-			document.getElementById('use_form_unit').value = p.unit;
-			document.getElementById('currentStockDisplay').innerHTML = p.qty + " " + p.unit;
-			openDrawer('useDrawer');
-		}
+    function openEdit(p) {
+        document.getElementById('form_id').value = p.id;
+        document.getElementById('form_name').value = p.name;
+        document.getElementById('form_cat').value = p.catégorie;
+        document.getElementById('form_qty').value = p.qty;
+        document.getElementById('form_unit').value = p.unit;
+        document.getElementById('form_buy').value = p.buyDate;
+        document.getElementById('form_exp').value = p.exp;
+        document.getElementById('form_notes').value = p.notes;
+        openDrawer('drawer');
+    }
 
-		async function showDetails(p) {
-			const img = p.image || PLACEHOLDER;
-			const expired = p.exp && new Date(p.exp) < new Date();
-			document.getElementById('detailsContent').innerHTML = `
+    function openUse(p) {
+        document.getElementById('use_form_id').value = p.id;
+        document.getElementById('use_form_date').value = new Date().toISOString().slice(0, 16);
+        document.getElementById('use_form_unit').value = p.unit;
+        document.getElementById('currentStockDisplay').innerHTML = p.qty + " " + p.unit;
+        openDrawer('useDrawer');
+    }
+
+    async function showDetails(p) {
+        const img = p.image ? p.image : PLACEHOLDER;
+        const content = document.getElementById('detailsContent');
+        const expired = p.exp && new Date(p.exp) < new Date();
+        content.innerHTML = `
                 <img src="${img}" class="details-img" onerror="this.src='${PLACEHOLDER}'">
                 <div class="info-item"><span class="info-label">Produit</span><span class="info-value">${p.name}</span></div>
                 <div style="display:flex; gap:20px;">
@@ -803,24 +744,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="info-item"><span class="info-label">Expiration</span><span class="info-value" style="color:${expired ? 'red':'inherit'}">${p.exp || 'N/A'}</span></div>
                 <div class="info-item"><span class="info-label">Historique</span><div id="logsTimeline" class="timeline">Chargement...</div></div>
+                <div class="info-item"><span class="info-label">Notes</span><div style="background:#f9f9f9;padding:10px;border-radius:8px;">${p.notes || '...'}</div></div>
             `;
-			openDrawer('detailsDrawer');
-			const res = await fetch(`${API_URL}?fetch_logs=${p.id}`);
-			const logs = await res.json();
-			document.getElementById('logsTimeline').innerHTML = logs.map(l => `<div class="log-item"><span class="log-date">${l.action_date}</span><b>${l.action_type}:</b> ${l.details}</div>`).join('') || "Aucun historique.";
-		}
+        openDrawer('detailsDrawer');
+        const res = await fetch(`index2.php?fetch_logs=${p.id}`);
+        const logs = await res.json();
+        document.getElementById('logsTimeline').innerHTML = logs.length ? logs.map(l =>
+            `<div class="log-item"><span style="color:gray;font-size:0.7rem;">${l.action_date}</span><br><b>${l.action_type}:</b> ${l.details}</div>`
+            ).join('') : "Aucun historique.";
+    }
 
-		function openDrawer(id) {
-			document.getElementById(id).classList.add('open');
-			document.getElementById('overlay').style.display = 'block';
-		}
+    function openDrawer(id) {
+        document.getElementById(id).classList.add('open');
+        document.getElementById('overlay').style.display = 'block';
+    }
 
-		function closeDrawer() {
-			document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open'));
-			document.getElementById('overlay').style.display = "none";
-		}
-		window.onload = loadProducts;
-	</script>
+    function closeDrawer() {
+        document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open'));
+        document.getElementById('overlay').style.display = 'none';
+    }
+    window.onload = loadProducts;
+    </script>
 </body>
 
 </html>

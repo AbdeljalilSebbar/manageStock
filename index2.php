@@ -1,8 +1,8 @@
 <?php
-$host = "localhost";
-$dbname = "stocktable";
-$user = "root";
-$pass = "";
+$host = "193.203.168.42";
+$dbname = "u899739665_s_inbat_work";
+$user = "u899739665_s_inbat_work";
+$pass = "U3&bwEytJ";
 
 try {
 	$pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass, [
@@ -28,6 +28,13 @@ if (isset($_GET['fetch'])) {
 		}
 	}
 	echo json_encode($products, JSON_UNESCAPED_UNICODE);
+	exit;
+}
+
+if (isset($_GET['fetch_categories'])) {
+	header('Content-Type: application/json');
+	$stmt = $pdo->query("SELECT name FROM categories ORDER BY name ASC");
+	echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
 	exit;
 }
 
@@ -68,6 +75,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$notes = $_POST['notes'] ?? '';
 		$imagePath = $_POST['existing_image'] ?? null;
 
+
+		// داخل if ($action === 'save')
+		// التحقق من الحقول المطلوبة (Validation)
+		if (empty($name)) {
+			header('Content-Type: application/json');
+			echo json_encode(['success' => false, 'message' => 'المرجو إدخال اسم المنتج']);
+			exit;
+		}
+
+		if (empty($cat)) {
+			header('Content-Type: application/json');
+			echo json_encode(['success' => false, 'message' => 'المرجو اختيار أو كتابة صنف (Catégorie)']);
+			exit;
+		}
+
+		if (empty($unit)) {
+			header('Content-Type: application/json');
+			echo json_encode(['success' => false, 'message' => 'المرجو تحديد الوحدة (Unité)']);
+			exit;
+		}
+
+		if (empty($imagePath) && !isset($_POST['existing_image'])) {
+			header('Content-Type: application/json');
+			echo json_encode(['success' => false, 'message' => 'المرجو تحميل صورة للمنتج']);
+			exit;
+		}
 		$final_qty = $input_qty;
 		if ($input_unit !== $unit) {
 			$u1 = strtolower(trim($input_unit));
@@ -83,6 +116,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			elseif (($u1 == 'tonnes' || $u1 == 't') && $u2 == 'kg')
 				$final_qty = $input_qty * 1000;
 			echo "hada ana hna" + $final_qty + "hada ana hna" + $input_qty + "hada ana hna" + $u1 + "hada ana hna" + $u2;
+		}
+		if (!empty($cat)) {
+			$stmt = $pdo->prepare("INSERT IGNORE INTO categories (name) VALUES (?)");
+			$stmt->execute([$cat]);
 		}
 		// TRAITEMENT IMAGE
 		if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
@@ -163,12 +200,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		exit;
 	}
 	// hna nst3ml chi product
+	// if ($action === 'use') {
+	// 	$id = intval($_POST['id']);
+	// 	$input_qty = floatval($_POST['used_qty']);
+	// 	$input_unit = $_POST['used_unit'] ?? '';
+	// 	$formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
+
+	// 	$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
+	// 	$s->execute([$id]);
+	// 	$p = $s->fetch();
+
+	// 	if ($p) {
+	// 		$base_unit = strtolower(trim($p['unit']));
+	// 		$used_unit = strtolower(trim($input_unit));
+	// 		$converted_qty = $input_qty;
+
+	// 		if ($used_unit !== $base_unit) {
+	// 			// All checks must be in lowercase here
+	// 			if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+	// 				$converted_qty = $input_qty / 1000;
+	// 			} elseif ($used_unit == 'g' && $base_unit == 'kg') {
+	// 				$converted_qty = $input_qty / 1000;
+	// 			} elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) {
+	// 				$converted_qty = $input_qty / 1000000;
+	// 			} elseif ($used_unit == 'ml' && $base_unit == 'l') {
+	// 				$converted_qty = $input_qty / 1000;
+	// 			} elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') {
+	// 				$converted_qty = $input_qty * 1000;
+	// 			}
+	// 		}
+
+	// 		$lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
+
+	// 		// Execute the subtraction
+	// 		$stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
+	// 		$stmt->execute([$converted_qty, $lastAction, $id]);
+
+	// 		addLog(
+	// 			$pdo,
+	// 			$id,
+	// 			$p['name'],
+	// 			$p['catégorie'],
+	// 			$p['buyDate'],
+	// 			$converted_qty,
+	// 			$p['unit'],
+	// 			'Utilisation',
+	// 			"Consommé $input_qty $input_unit (soit $converted_qty {$p['unit']})",
+	// 			$p['notes']
+	// 		);
+	// 	}
+	// }
 	if ($action === 'use') {
 		$id = intval($_POST['id']);
 		$input_qty = floatval($_POST['used_qty']);
 		$input_unit = $_POST['used_unit'] ?? '';
 		$formatted_date = date('d/m/Y à H:i', strtotime($_POST['use_date']));
 
+		if (!empty($input_qty)) {
+			if ($input_qty < 0) {
+				// 1. كنقولو للمتصفح أننا غنصيفطو JSON
+				header('Content-Type: application/json');
+
+				// 2. كنصيفطو الرد فيه success false والرسالة ديال الخطأ
+				echo json_encode([
+					'success' => false,
+					'message' => 'الكمية غير كافية'
+				]);
+
+				// 3. كنحبسو السكريبت باش ما يكملش الأوامر الأخرى
+				exit;
+			}
+		}
 		$s = $pdo->prepare("SELECT * FROM products WHERE id = ?");
 		$s->execute([$id]);
 		$p = $s->fetch();
@@ -178,39 +280,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$used_unit = strtolower(trim($input_unit));
 			$converted_qty = $input_qty;
 
+			// تحويل الوحدات (نفس الكود اللي كان عندك)
 			if ($used_unit !== $base_unit) {
-				// All checks must be in lowercase here
-				if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) {
-					$converted_qty = $input_qty / 1000;
-				} elseif ($used_unit == 'g' && $base_unit == 'kg') {
-					$converted_qty = $input_qty / 1000;
-				} elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) {
-					$converted_qty = $input_qty / 1000000;
-				} elseif ($used_unit == 'ml' && $base_unit == 'l') {
-					$converted_qty = $input_qty / 1000;
-				} elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') {
-					$converted_qty = $input_qty * 1000;
-				}
+				if ($used_unit == 'kg' && ($base_unit == 'tonnes' || $base_unit == 't')) $converted_qty = $input_qty / 1000;
+				elseif ($used_unit == 'g' && $base_unit == 'kg') $converted_qty = $input_qty / 1000;
+				elseif ($used_unit == 'g' && ($base_unit == 'tonnes' || $base_unit == 't')) $converted_qty = $input_qty / 1000000;
+				elseif ($used_unit == 'ml' && $base_unit == 'l') $converted_qty = $input_qty / 1000;
+				elseif (($used_unit == 'tonnes' || $used_unit == 't') && $base_unit == 'kg') $converted_qty = $input_qty * 1000;
+			}
+
+			// --- الزيادة المهمة هنا: التحقق من الكمية ---
+			if ($converted_qty > $p['qty']) {
+				header('Content-Type: application/json');
+				echo json_encode(['success' => false, 'error' => 'الكمية غير كافية! المتوفر حاليا هو: ' . $p['qty'] . ' ' . $p['unit']]);
+				exit;
 			}
 
 			$lastAction = "⚡ Utilisé ($input_qty $input_unit) le $formatted_date";
-
-			// Execute the subtraction
 			$stmt = $pdo->prepare("UPDATE products SET qty = qty - ?, lastAction = ? WHERE id = ?");
 			$stmt->execute([$converted_qty, $lastAction, $id]);
 
-			addLog(
-				$pdo,
-				$id,
-				$p['name'],
-				$p['catégorie'],
-				$p['buyDate'],
-				$converted_qty,
-				$p['unit'],
-				'Utilisation',
-				"Consommé $input_qty $input_unit (soit $converted_qty {$p['unit']})",
-				$p['notes']
-			);
+			addLog($pdo, $id, $p['name'], $p['catégorie'], $p['buyDate'], $converted_qty, $p['unit'], 'Utilisation', "Consommé $input_qty $input_unit", $p['notes']);
+
+			header('Content-Type: application/json');
+			echo json_encode(['success' => true]);
+			exit;
 		}
 	}
 	// hna bch nmsah chi data
@@ -581,6 +675,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			font-size: 0.75rem;
 			display: block;
 		}
+
+		.bg-empty {
+			background: #fee2e2 !important;
+			color: #b91c1c !important;
+			border: 1px solid #fecaca;
+		}
+
+		.btn-disabled {
+			background: #f1f5f9 !important;
+			color: #94a3b8 !important;
+			cursor: not-allowed !important;
+			opacity: 0.6;
+		}
 	</style>
 </head>
 
@@ -768,6 +875,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				}
 			}
 		}
+		// async function loadProducts() {
+		// 	const response = await fetch('index2.php?fetch=1');
+		// 	const products = await response.json();
+
+		// 	const dashBody = document.querySelector('#dashTable tbody');
+		// 	const manBody = document.querySelector('#manTable tbody');
+		// 	const statsSummary = document.getElementById('statsSummary');
+
+		// 	dashBody.innerHTML = '';
+		// 	manBody.innerHTML = '';
+
+		// 	// 1. Structure jdida: { "Catégorie": { "Unité1": sum, "Unité2": sum } }
+		// 	const totals = {};
+
+		// 	products.forEach(p => {
+		// 		const cat = p.catégorie || "Non classé";
+		// 		const unit = p.unit || "u";
+		// 		const qty = parseFloat(p.qty) || 0;
+		// 		const img = p.image ? p.image : PLACEHOLDER;
+
+
+		// 		if (!totals[cat]) {
+		// 			totals[cat] = {};
+		// 		}
+
+		// 		if (!totals[cat][unit]) {
+		// 			totals[cat][unit] = 0;
+		// 		}
+
+		// 		totals[cat][unit] += qty;
+
+		// 		// 2. Render Tables (kima kano)
+		// 		let badgeClass = 'bg-ok';
+		// 		let useBtnAttr = `class="btn btn-use" onclick='openUse(${JSON.stringify(p).replace(/'/g, "&apos;")})'`;
+		// 		// إذا كانت الكمية 0 أو أقل
+		// 		if (qty <= 0) {
+		// 			badgeClass = 'bg-empty'; // أحمر
+		// 			useBtnAttr = `class="btn btn-disabled" disabled`; // تعطيل الزر
+		// 		} 
+		// 		// إذا كانت الكمية قليلة (أقل من 5 مثلا)
+		// 		else if (qty <= 5) {
+		// 			badgeClass = 'bg-low'; // برتقالي
+		// 		}
+		// 		const rowData = JSON.stringify(p).replace(/'/g, "&apos;");
+
+		// 		dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${rowData})'><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td></tr>`;
+		// 		manBody.innerHTML += `<tr><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><b>${p.qty}</b> ${unit}</td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td><td><div class="action-group"><button class="btn btn-use" onclick='openUse(${rowData})'>⚡</button><button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></div></td></tr>`;
+		// 	});
+
+		// 	// 3. Affichage: Box wahed l-koul Catégorie fih ga3 l-unités
+		// 	statsSummary.innerHTML = '';
+		// 	for (const catName in totals) {
+		// 		let unitLines = '';
+		// 		// Kandoro 3la ga3 l-unités li jm3na f had l-catégorie
+		// 		for (const [unitName, sumValue] of Object.entries(totals[catName])) {
+		// 			unitLines += `<div class="value">${sumValue.toFixed(2)}<span class="unit">${unitName}</span></div>`;
+		// 		}
+
+		// 		statsSummary.innerHTML += `
+		//             <div class="stat-card">
+		//                 <h3>Total ${catName}</h3>
+		//                 ${unitLines}
+		//             </div>`;
+		// 	}
+		// }
 		async function loadProducts() {
 			const response = await fetch('index2.php?fetch=1');
 			const products = await response.json();
@@ -779,7 +951,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			dashBody.innerHTML = '';
 			manBody.innerHTML = '';
 
-			// 1. Structure jdida: { "Catégorie": { "Unité1": sum, "Unité2": sum } }
 			const totals = {};
 
 			products.forEach(p => {
@@ -788,50 +959,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				const qty = parseFloat(p.qty) || 0;
 				const img = p.image ? p.image : PLACEHOLDER;
 
-				if (!totals[cat]) {
-					totals[cat] = {};
-				}
-
-				if (!totals[cat][unit]) {
-					totals[cat][unit] = 0;
-				}
-
+				if (!totals[cat]) totals[cat] = {};
+				if (!totals[cat][unit]) totals[cat][unit] = 0;
 				totals[cat][unit] += qty;
 
-				// 2. Render Tables (kima kano)
-				const badgeClass = qty <= 5 ? 'bg-low' : 'bg-ok';
+				// --- المنطق ديال الألوان والتعطيل ---
+				let badgeClass = 'bg-ok';
+				// هنا كنجهزو الزر على حسب الكمية
+				let useBtnAttr = `class="btn btn-use" onclick='openUse(${JSON.stringify(p).replace(/'/g, "&apos;")})'`;
+
+				if (qty <= 0) {
+					badgeClass = 'bg-empty'; // أحمر
+					useBtnAttr = `class="btn btn-disabled" disabled`; // تعطيل الزر حقيقي
+				} else if (qty <= 5) {
+					badgeClass = 'bg-low'; // برتقالي
+				}
+
 				const rowData = JSON.stringify(p).replace(/'/g, "&apos;");
 
-				dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${rowData})'><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td></tr>`;
-				manBody.innerHTML += `<tr><td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td><td>${cat}</td><td><b>${p.qty}</b> ${unit}</td><td>${p.buyDate}</td><td>${p.exp}</td><td><small>${p.lastAction}</small></td><td><div class="action-group"><button class="btn btn-use" onclick='openUse(${rowData})'>⚡</button><button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></div></td></tr>`;
+				// الجدول الأول (Dashboard)
+				dashBody.innerHTML += `<tr class="clickable" onclick='showDetails(${rowData})'>
+            <td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td>
+            <td>${cat}</td>
+            <td><span class="badge ${badgeClass}">${p.qty} ${unit}</span></td>
+            <td>${p.buyDate}</td>
+            <td>${p.exp}</td>
+            <td><small>${p.lastAction}</small></td>
+        </tr>`;
+
+				// الجدول الثاني (Gestion) - هنا فين كان الخطأ، ركز على الزر الأول:
+				manBody.innerHTML += `<tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><img src="${img}" class="prod-img" onerror="this.src='${PLACEHOLDER}'"><b>${p.name}</b></div></td>
+            <td>${cat}</td>
+            <td><b>${p.qty}</b> ${unit}</td>
+            <td>${p.buyDate}</td>
+            <td>${p.exp}</td>
+            <td><small>${p.lastAction}</small></td>
+            <td>
+                <div class="action-group">
+                    <button ${useBtnAttr}>⚡</button> 
+                    <button class="btn btn-outline" onclick='openEdit(${rowData})'>✏️</button>
+                    <button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button>
+                </div>
+            </td>
+        </tr>`;
 			});
 
-			// 3. Affichage: Box wahed l-koul Catégorie fih ga3 l-unités
+			// تحديث الإحصائيات
 			statsSummary.innerHTML = '';
 			for (const catName in totals) {
 				let unitLines = '';
-				// Kandoro 3la ga3 l-unités li jm3na f had l-catégorie
 				for (const [unitName, sumValue] of Object.entries(totals[catName])) {
 					unitLines += `<div class="value">${sumValue.toFixed(2)}<span class="unit">${unitName}</span></div>`;
 				}
-
-				statsSummary.innerHTML += `
-                    <div class="stat-card">
-                        <h3>Total ${catName}</h3>
-                        ${unitLines}
-                    </div>`;
+				statsSummary.innerHTML += `<div class="stat-card"><h3>Total ${catName}</h3>${unitLines}</div>`;
 			}
 		}
+		// document.querySelectorAll('form').forEach(f => {
+		// 	f.onsubmit = async (e) => {
+		// 		e.preventDefault();
+		// 		await fetch('index2.php', {
+		// 			method: 'POST',
+		// 			body: new FormData(f)
+		// 		});
+		// 		closeDrawer();
+		// 		loadProducts();
+		// 	};
+		// });
 
 		document.querySelectorAll('form').forEach(f => {
 			f.onsubmit = async (e) => {
 				e.preventDefault();
-				await fetch('index2.php', {
-					method: 'POST',
-					body: new FormData(f)
-				});
-				closeDrawer();
-				loadProducts();
+
+				try {
+					const response = await fetch('index2.php', {
+						method: 'POST',
+						body: new FormData(f)
+					});
+
+					// كنحولوا الرد لـ JSON
+					const result = await response.json();
+
+					if (result.success) {
+						// إذا نجحت العملية
+						closeDrawer();
+						loadProducts();
+						// اختياري: تقدر تزيد ميساج ديال النجاح هنا
+					} else {
+						// إذا السيرفر صيفط success: false (بحال فاش كتكون الكمية كبر من السطوك)
+						alert("⚠️ تنبيه: " + (result.error || result.message || "وقع خطأ ما"));
+					}
+				} catch (error) {
+					console.error("Erreur:", error);
+					alert("❌ فشل الاتصال بالسيرفر");
+				}
 			};
 		});
 
@@ -920,7 +1141,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			document.getElementById(id).classList.add('open');
 			document.getElementById('overlay').style.display = 'block';
 		}
-		window.onload = loadProducts;
+		async function loadCategories() {
+			try {
+				const response = await fetch('index2.php?fetch_categories=1');
+				const categories = await response.json();
+				const dataList = document.getElementById('category_options');
+
+				// كنمصحو القائمة القديمة ونعمروها بالجديدة
+				dataList.innerHTML = '';
+				categories.forEach(cat => {
+					const option = document.createElement('option');
+					option.value = cat;
+					dataList.appendChild(option);
+				});
+			} catch (e) {
+				console.error("Erreur loading categories");
+			}
+		}
+
+		// تعديل window.onload باش تخدمهم بجوج
+		window.onload = () => {
+			loadProducts();
+			loadCategories();
+		};
 	</script>
 </body>
 
